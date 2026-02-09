@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-cream: #FAFAF8;
+  --color-charcoal: #1A1A1A;
+  --color-ink: #0F2B46;
+  --color-amber: #C8944A;
+  --color-muted: #8A8A82;
+  --color-border: #E8E6E1;
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── Base ─────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: #FAFAF8;
+}
+
+body {
+  font-family: Inter, system-ui, sans-serif;
+  background: #FAFAF8;
+  color: #1A1A1A;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #C8944A;
+  color: white;
+}
+
+/* ── Typography ───────────────────────────────────── */
+.font-editorial {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Subtle noise ─────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
+}
+
+/* ── Score ring animation ─────────────────────────── */
+@keyframes score-fill {
+  from {
+    stroke-dashoffset: var(--circumference);
+  }
+
+  to {
+    stroke-dashoffset: var(--offset);
+  }
+}
+
+/* ── Shimmer ──────────────────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.shimmer-amber {
+  background: linear-gradient(90deg, #1A1A1A 0%, #C8944A 30%, #1A1A1A 50%, #C8944A 70%, #1A1A1A 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+/* ── Custom slider ────────────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: #E8E6E1;
+  border-radius: 1px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0F2B46;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 43, 70, 0.25);
+  transition: transform 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0F2B46;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Toggle ───────────────────────────────────────── */
+.toggle-editorial {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  background: #E8E6E1;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.4s;
+}
+
+.toggle-editorial.active {
+  background: #0F2B46;
+}
+
+.toggle-editorial::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.toggle-editorial.active::after {
+  transform: translateX(24px);
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E8E6E1;
+  border-radius: 3px;
+}
+
+/* ── Backface hidden (for 3D flip) ───────────────── */
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* ── Interactive input focus ─────────────────────── */
+input:focus {
+  border-color: rgba(200, 148, 74, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(200, 148, 74, 0.1);
+}
