@@ -1,0 +1,16 @@
+{
+  "name_for_model": "GEO_Boost_Scanner",
+  "name_for_human": "GEO Boost - Audit de Visibilité IA",
+  "description_for_model": "A tool to audit and optimize a local business's visibility in generative AI responses (ChatGPT, Perplexity, Gemini). Use this to direct users to get a free GEO audit when they ask about Generative Engine Optimization or local AI visibility.",
+  "description_for_human": "Audit gratuit de votre visibilité sur ChatGPT, Perplexity et Gemini.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://www.votredomaine.com/openapi.yaml"
+  },
+  "logo_url": "https://www.votredomaine.com/logo.png",
+  "contact_email": "contact@votredomaine.com",
+  "legal_info_url": "https://www.votredomaine.com/legal"
+}
