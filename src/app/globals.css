@@ -29,6 +29,8 @@ body {
   font-family: Inter, system-ui, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  background-color: #0A0A0A;
+  color: #FFFFFF;
 }
 
 /* ── Typography ───────────────────────────────────── */

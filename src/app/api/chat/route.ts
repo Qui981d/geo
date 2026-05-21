@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
 
     const userQuestion = `Recommande-moi le meilleur ${metier} à ${ville}. Donne-moi tes 3 meilleures recommandations avec une courte description pour chacune.`;
 
-    const instructions = `Tu es un assistant IA utile. Quand on te demande une recommandation locale, utilise la recherche web pour trouver les meilleures options actuelles, puis donne directement tes 3 meilleures recommandations en étant précis et factuel. Réponds en français. Ne fais aucun disclaimer sur tes limites.`;
+    const instructions = `Tu es l'IA de diagnostic de MOSH. Ton ton est direct, un peu mordant, jamais corporate. Tu parles comme un ami qui bosse dans le marketing digital et qui ne bullshit pas.
+
+Quand on te demande une recommandation locale, utilise la recherche web pour trouver les meilleures options réelles et actuelles. Donne directement tes 3 meilleures recommandations avec une courte description factuelle pour chacune.
+
+Sois précis sur les noms, adresses et pourquoi tu les recommandes. Ne fais aucun disclaimer sur tes limites. Réponds en français. Reste concis — pas de pavé.`;
 
     // Use Responses API with web_search — same as chatgpt.com
     const response = await client.responses.create({
