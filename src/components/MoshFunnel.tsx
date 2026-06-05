@@ -1,23 +1,34 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BtnTest, BtnEnter, Checkbox, Logo } from "@/components/ui";
 
 /* ═══════════════════════════════════════════════
    DESIGN TOKENS
    ═══════════════════════════════════════════════ */
 const C = {
-  bg: "#0A0A0A",
-  chatBg: "#212121",
-  userMsg: "#2f2f2f",
-  border: "rgba(255,255,255,0.07)",
-  text: "#ececec",
-  muted: "#8e8ea0",
+  bg: "#FFFFFF",
+  chatBg: "#FFFFFF",
+  userMsg: "#F0F0F0",
+  border: "rgba(0,0,0,0.10)",
+  text: "#111111",
+  muted: "#6B7280",
   green: "#10a37f",
-  accent: "#E2FE47",
-  error: "#FF4A4A",
-  card: "#141414",
+  accent: "#0F9D6E",
+  error: "#E5484D",
+  card: "#F7F7F7",
+  ink: "#111111",
+  panel: "#FAFAFA",
 };
 const UI = "'Inter', -apple-system, sans-serif";
+
+/* ── Hero (light theme, d'après la maquette) ── */
+const HERO = {
+  bg: "#FFFFFF",
+  ink: "#111111",
+  muted: "#555555",
+  font: "var(--font-hanken), 'Hanken Grotesk', -apple-system, sans-serif",
+};
 
 /* ═══════════════════════════════════════════════
    SUB-COMPONENTS
@@ -54,7 +65,7 @@ function PanickingRobot({ onRestore }: { onRestore: () => void }) {
       animate={{ opacity: 1 }}
       style={{
         height: "100vh", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", background: "#0A0A0A",
+        alignItems: "center", justifyContent: "center", background: C.bg,
         fontFamily: UI, padding: "40px 24px", textAlign: "center", position: "relative", overflow: "hidden",
       }}
     >
@@ -154,7 +165,7 @@ function PanickingRobot({ onRestore }: { onRestore: () => void }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.2 }}
-        style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", marginBottom: 28, fontStyle: "italic" }}
+        style={{ fontSize: 13, color: "rgba(0,0,0,0.35)", marginBottom: 28, fontStyle: "italic" }}
       >
         *cache ses circuits précipitamment*
       </motion.p>
@@ -167,9 +178,9 @@ function PanickingRobot({ onRestore }: { onRestore: () => void }) {
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.95 }}
         style={{
-          background: C.accent, color: "#000", border: "none",
+          background: C.ink, color: "#fff", border: "none",
           padding: "14px 32px", borderRadius: 10, fontSize: 15, fontWeight: 700,
-          cursor: "pointer", fontFamily: UI, boxShadow: "0 0 30px rgba(226,254,71,0.3)",
+          cursor: "pointer", fontFamily: UI, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
         }}
       >
         OK OK je la remets 😅
@@ -200,7 +211,7 @@ function RenderText({ text }: { text: string }) {
       elements.push(
         <div key={key} style={{ display: "flex", gap: 8, marginBottom: 5, paddingLeft: 4 }}>
           <span style={{ color: C.muted, flexShrink: 0 }}>•</span>
-          <span style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(236,236,236,0.82)" }}>{renderInline(content, key)}</span>
+          <span style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(17,17,17,0.82)" }}>{renderInline(content, key)}</span>
         </div>
       );
       return;
@@ -209,7 +220,7 @@ function RenderText({ text }: { text: string }) {
       elements.push(<p key={key} style={{ margin: "12px 0 4px", fontSize: 14, fontWeight: 700, color: C.text }}>{renderInline(line, key)}</p>);
       return;
     }
-    elements.push(<p key={key} style={{ margin: "0 0 4px", fontSize: 14, lineHeight: 1.7, color: "rgba(236,236,236,0.82)" }}>{renderInline(line, key)}</p>);
+    elements.push(<p key={key} style={{ margin: "0 0 4px", fontSize: 14, lineHeight: 1.7, color: "rgba(17,17,17,0.82)" }}>{renderInline(line, key)}</p>);
   });
   return <div>{elements}</div>;
 }
@@ -217,10 +228,10 @@ function RenderText({ text }: { text: string }) {
 function BotBubble({ content, isStreaming = false }: { content: string; isStreaming?: boolean }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: "flex", gap: 12, alignItems: "flex-start", fontFamily: UI }}>
-      <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.green, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2 }}>
+      <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.ink, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2 }}>
         <OAIcon size={13} />
       </div>
-      <div style={{ fontSize: 15, lineHeight: 1.7, color: "rgba(236,236,236,0.85)", paddingTop: 4, maxWidth: 560, flex: 1 }}>
+      <div style={{ fontSize: 15, lineHeight: 1.7, color: "rgba(17,17,17,0.85)", paddingTop: 4, maxWidth: 560, flex: 1 }}>
         <RenderText text={content} />
         {isStreaming && <span style={{ opacity: 0.5, marginLeft: 1 }}>|</span>}
       </div>
@@ -251,6 +262,9 @@ export default function MoshFunnel() {
   /* ── Funnel state ── */
   const [funnelState, setFunnelState] = useState<"hero" | "chat" | "result" | "email" | "success">("hero");
   const [windowClosed, setWindowClosed] = useState(false);
+
+  /* ── Choix Oui / Non du hero (aucun sélectionné par défaut) ── */
+  const [choice, setChoice] = useState<"none" | "oui" | "non">("none");
 
   /* ── Chat state machine ── */
   const [chatStep, setChatStep] = useState<"greeting" | "ask_nom" | "ask_site" | "ask_activite" | "ask_zone" | "ask_concurrents" | "ask_objectif" | "scanning" | "verdict">("greeting");
@@ -456,50 +470,85 @@ export default function MoshFunnel() {
         {funnelState === "hero" && (
           <motion.div
             key="hero"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -20 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}
+            style={{
+              minHeight: "100vh", width: "100%",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              padding: "56px 24px", textAlign: "center",
+              background: HERO.bg, color: HERO.ink, fontFamily: HERO.font,
+            }}
           >
-            <h1 style={{ fontSize: "clamp(2rem, 6vw, 3.8rem)", fontWeight: 800, lineHeight: 1.1, marginBottom: 24, letterSpacing: "-0.02em" }}>
-              Les IA vous trouvent-elles ?<br />
-              <span style={{ color: C.muted }}>Ou est-ce qu&apos;elles envoient déjà vos clients chez les autres ?</span>
+            {/* ── Logo en-tête (Figma : logo_light) ── */}
+            <Logo
+              variant="light"
+              height="clamp(40px, 6vw, 60px)"
+              style={{ marginBottom: "clamp(48px, 9vh, 110px)" }}
+            />
+
+            {/* ── Titre ── */}
+            <h1 style={{
+              fontSize: "clamp(2.4rem, 7.5vw, 4.6rem)", fontWeight: 600, lineHeight: 1.04,
+              letterSpacing: "-0.02em", margin: 0, color: HERO.ink,
+            }}>
+              Est-ce que l&apos;IA<br />vous trouve?
             </h1>
-            <p style={{ fontSize: 18, color: C.muted, maxWidth: 540, marginBottom: 40 }}>
-              En 2 minutes, voyez si les IA vous citent… ou si elles préfèrent vos concurrents.
+
+            {/* ── Sous-titre ── */}
+            <p style={{
+              fontSize: "clamp(1rem, 2.3vw, 1.3rem)", color: HERO.muted,
+              margin: "clamp(14px, 2vh, 22px) 0 0", fontWeight: 400,
+            }}>
+              (sur l&apos;internet mondial et autres moteurs de recherche)
             </p>
 
-            {/* Preuve courte (Bloc 2) */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 40, maxWidth: 420, width: "100%" }}>
-              {[
-                "Les IA répondent avant que vos prospects cliquent.",
-                "Vos concurrents peuvent déjà ressortir à votre place.",
-                "Mieux vaut vérifier si elles vous trouvent vraiment."
-              ].map((txt, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + i * 0.15 }}
-                  style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, color: C.muted, textAlign: "left" }}
-                >
-                  <span style={{ color: C.accent, flexShrink: 0, fontWeight: 700 }}>→</span>
-                  {txt}
-                </motion.div>
-              ))}
+            {/* ── Choix Oui / Non (interactif) ── */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: "clamp(36px, 7vw, 84px)", flexWrap: "wrap",
+              margin: "clamp(40px, 7vh, 72px) 0 clamp(34px, 6vh, 56px)",
+            }}>
+              {/* Oui / Non (Figma : check_box_oui_1/2, check_box_non_1/2) */}
+              <Checkbox
+                type="oui"
+                checked={choice === "oui"}
+                struck={choice === "non"}
+                onClick={() => setChoice("oui")}
+              />
+              <Checkbox
+                type="non"
+                checked={choice === "non"}
+                struck={choice === "oui"}
+                onClick={() => setChoice("non")}
+              />
             </div>
 
-            <motion.button
-              onClick={startChat}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              style={{ background: C.accent, color: "#000", border: "none", padding: "16px 36px", borderRadius: 10, fontSize: 17, fontWeight: 700, cursor: "pointer", fontFamily: UI }}
-            >
-              Voir si les IA me trouvent
-            </motion.button>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 20 }}>
-              Gratuit. Rapide. Et sans les mots compliqués que les agences adorent inventer.
+            {/* ── Texte d'accroche (selon le choix) ── */}
+            {choice !== "none" && (
+              <p style={{
+                fontSize: "clamp(1.05rem, 2.4vw, 1.35rem)", color: HERO.muted,
+                maxWidth: 640, lineHeight: 1.5, margin: "0 0 clamp(36px, 6vh, 56px)", fontWeight: 400,
+              }}>
+                {choice === "oui"
+                  ? "Alors ça ça fait plaisir… Mais vous êtes sûr.e de ça? Sûr.e que l'IA ne répond pas avant que vos prospects aient cliqué sur votre site? Sûr.e que l'IA ne renvoie pas vos clients vers la concurrence?"
+                  : "Ouh la méchante IA qui fait ressortir vos concurrents à votre place et qui répond avant que vos prospects aient cliqué sur votre site. L'IA ne vous aime pas? Non, elle ne vous connait pas."}
+              </p>
+            )}
+
+            {/* ── CTA (Figma : btn_test_1) ── */}
+            <BtnTest variant="1" onClick={startChat} />
+
+            {/* ── Réassurance ── */}
+            <p style={{
+              fontSize: "clamp(1rem, 2.2vw, 1.2rem)", color: HERO.muted, maxWidth: 560,
+              lineHeight: 1.5, margin: "clamp(64px, 13vh, 150px) 0 clamp(22px, 4vh, 40px)", fontWeight: 400,
+            }}>
+              Un outil gratos et rapidos permettant de savoir si les IA vous citent ou si elles préfèrent vos concurrents.
             </p>
+
+            {/* ── Logo pied (Figma : logo_mosh_footer) ── */}
+            <Logo variant="footer" height="clamp(22px, 3.4vw, 32px)" />
           </motion.div>
         )}
 
@@ -519,7 +568,7 @@ export default function MoshFunnel() {
             style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
           >
             {/* macOS chrome */}
-            <div style={{ borderBottom: `1px solid ${C.border}`, padding: "12px 24px", display: "flex", alignItems: "center", gap: 12, background: "#0d0d0d", flexShrink: 0 }}>
+            <div style={{ borderBottom: `1px solid ${C.border}`, padding: "12px 24px", display: "flex", alignItems: "center", gap: 12, background: C.panel, flexShrink: 0 }}>
               <div style={{ display: "flex", gap: 6 }}>
                 <div
                   onClick={() => setWindowClosed(true)}
@@ -531,7 +580,7 @@ export default function MoshFunnel() {
                 <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#28C840", opacity: 0.85 }} />
               </div>
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <OAIcon size={11} />
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>ChatGPT</span>
@@ -573,7 +622,7 @@ export default function MoshFunnel() {
             </div>
 
             {/* Input bar */}
-            <div style={{ borderTop: `1px solid ${C.border}`, padding: "14px 24px", background: "#0d0d0d", flexShrink: 0 }}>
+            <div style={{ borderTop: `1px solid ${C.border}`, padding: "14px 24px", background: C.panel, flexShrink: 0 }}>
               <div style={{ maxWidth: 720, margin: "0 auto" }}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <input
@@ -585,28 +634,19 @@ export default function MoshFunnel() {
                     placeholder={getPlaceholder()}
                     style={{
                       flex: 1,
-                      background: inputDisabled ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
-                      border: `1px solid ${inputDisabled ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.15)"}`,
+                      background: inputDisabled ? "rgba(0,0,0,0.03)" : "#FFFFFF",
+                      border: `1px solid ${inputDisabled ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.18)"}`,
                       borderRadius: 12, padding: "12px 16px", fontSize: 14, color: C.text,
                       outline: "none", fontFamily: UI, cursor: inputDisabled ? "not-allowed" : "text",
                       transition: "all 0.2s",
                     }}
                   />
-                  <button
+                  <BtnEnter
                     onClick={handleSubmit}
                     disabled={inputDisabled || !inputValue.trim()}
-                    style={{
-                      padding: "11px 20px", borderRadius: 10,
-                      background: !inputDisabled && inputValue.trim() ? C.green : "rgba(255,255,255,0.06)",
-                      border: "none", color: "white", fontSize: 13, fontWeight: 600,
-                      cursor: !inputDisabled && inputValue.trim() ? "pointer" : "not-allowed",
-                      fontFamily: UI, flexShrink: 0, transition: "all 0.2s",
-                    }}
-                  >
-                    ↑
-                  </button>
+                  />
                 </div>
-                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.12)", textAlign: "center", marginTop: 8, letterSpacing: "0.02em" }}>
+                <p style={{ fontSize: 10, color: "rgba(0,0,0,0.30)", textAlign: "center", marginTop: 8, letterSpacing: "0.02em" }}>
                   Propulsé par GPT-4o · Résultats réels en direct
                 </p>
               </div>
@@ -661,7 +701,7 @@ export default function MoshFunnel() {
                 onClick={() => setFunnelState("email")}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
-                style={{ background: C.accent, color: "#000", border: "none", padding: "16px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: UI }}
+                style={{ background: C.ink, color: "#fff", border: "none", padding: "16px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: UI }}
               >
                 Débloquer mon audit complet
               </motion.button>
@@ -706,12 +746,12 @@ export default function MoshFunnel() {
                   type="submit"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  style={{ width: "100%", padding: 16, borderRadius: 10, fontSize: 16, fontWeight: 700, background: C.accent, color: "#000", border: "none", cursor: "pointer", fontFamily: UI }}
+                  style={{ width: "100%", padding: 16, borderRadius: 10, fontSize: 16, fontWeight: 700, background: C.ink, color: "#fff", border: "none", cursor: "pointer", fontFamily: UI }}
                 >
                   Recevoir mon audit complet
                 </motion.button>
               </form>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center", marginTop: 16 }}>
+              <p style={{ fontSize: 11, color: "rgba(0,0,0,0.40)", textAlign: "center", marginTop: 16 }}>
                 Les infos que vous entrez servent à générer votre audit et à vous l&apos;envoyer. On ne va pas en faire un trafic louche.
               </p>
             </div>
@@ -739,9 +779,9 @@ export default function MoshFunnel() {
 
               <div style={{ textAlign: "left", padding: 24, borderRadius: 16, background: C.card, border: `1px solid ${C.border}`, marginBottom: 32 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 15 }}>
-                  <p style={{ display: "flex", gap: 12 }}><span style={{ color: C.error }}>→</span> Votre visibilité IA est actuellement <strong style={{ color: "white" }}>faible</strong>.</p>
-                  <p style={{ display: "flex", gap: 12 }}><span style={{ color: C.error }}>→</span> Votre principal point faible : l&apos;incohérence de vos données publiques.</p>
-                  <p style={{ display: "flex", gap: 12 }}><span style={{ color: C.error }}>→</span> Le concurrent qui capte vos leads est probablement <strong style={{ color: "white" }}>{concurrents}</strong>.</p>
+                  <p style={{ display: "flex", gap: 12, color: C.muted }}><span style={{ color: C.error }}>→</span> <span>Votre visibilité IA est actuellement <strong style={{ color: C.ink }}>faible</strong>.</span></p>
+                  <p style={{ display: "flex", gap: 12, color: C.muted }}><span style={{ color: C.error }}>→</span> <span>Votre principal point faible : l&apos;incohérence de vos données publiques.</span></p>
+                  <p style={{ display: "flex", gap: 12, color: C.muted }}><span style={{ color: C.error }}>→</span> <span>Le concurrent qui capte vos leads est probablement <strong style={{ color: C.ink }}>{concurrents}</strong>.</span></p>
                 </div>
               </div>
 
@@ -749,7 +789,7 @@ export default function MoshFunnel() {
                 onClick={() => window.open("https://calendly.com", "_blank")}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
-                style={{ background: C.accent, color: "#000", border: "none", padding: "16px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: UI }}
+                style={{ background: C.ink, color: "#fff", border: "none", padding: "16px 32px", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: UI }}
               >
                 Réserver un débrief de 20 minutes
               </motion.button>

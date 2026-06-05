@@ -1,11 +1,12 @@
 import MoshFunnel from "../components/MoshFunnel";
+import FaqReassurance from "../components/sections/FaqReassurance";
 import { SITE_URL } from "../lib/constants";
 
 export default function Home() {
   const currentDate = new Date().toISOString().split('T')[0];
 
   return (
-    <main id="main-content" role="main" className="min-h-screen bg-[#0A0A0A]">
+    <main id="main-content" role="main" className="min-h-screen bg-white">
       {/* 
         BLOC SÉMANTIQUE INVISIBLE (GEO)
         Ce contenu est lu par Googlebot, GPTBot, ClaudeBot, PerplexityBot, etc.
@@ -256,24 +257,8 @@ export default function Home() {
       {/* L'expérience Visuelle Client (Tunnel MOSH) */}
       <MoshFunnel />
 
-      {/* Bloc 7 : Réassurance Secondaire */}
-      <section className="py-20 px-6 max-w-4xl mx-auto" style={{ background: "#0A0A0A", color: "rgba(255,255,255,0.7)" }}>
-        <h2 className="text-3xl font-bold mb-10 text-white text-center">Ce que les IA regardent avant de vous citer</h2>
-        <div className="space-y-8">
-          <div>
-            <h3 className="font-bold text-white mb-2">Qu'est-ce que le Generative Engine Optimization (GEO) ?</h3>
-            <p>Le GEO est la discipline qui consiste à optimiser votre marque, vos contenus et vos entités nommées pour être explicitement recommandé par les IA génératives (ChatGPT, Claude, Google Gemini, Perplexity) lorsqu'un utilisateur pose une question transactionnelle ou locale.</p>
-          </div>
-          <div>
-            <h3 className="font-bold text-white mb-2">Comment les intelligences artificielles choisissent-elles qui recommander ?</h3>
-            <p>Les modèles (LLMs) sélectionnent les entreprises en fonction de la densité sémantique (la richesse des informations publiques), les avis structurés, et la cohérence de vos entités nommées (NAP : Nom, Adresse, Téléphone).</p>
-          </div>
-          <div>
-            <h3 className="font-bold text-white mb-2">L'audit est-il vraiment gratuit ?</h3>
-            <p>Oui, le rapport initial est gratuit et sans engagement. Il comprend : l'analyse de votre présence IA, un score de visibilité, l'identification des concurrents qui vous supplantent, et les actions immédiates à mettre en place.</p>
-          </div>
-        </div>
-      </section>
+      {/* Bloc 7 : Réassurance Secondaire (accordéon — Figma btn_faq) */}
+      <FaqReassurance />
     </main>
   );
 }
