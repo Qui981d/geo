@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Références design locales (exports Figma) + config outils locale
+/design-refs/
+/.claude/

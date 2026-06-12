@@ -1,15 +1,17 @@
 "use client";
+import { u } from "./tokens";
 
 /**
  * Logo de la marque (Figma : logo_light, logo_dark, logo_mosh_footer).
  *
- * Réutilise les SVG déjà présents dans /public :
- *  - variant "light"  → logo-haut.svg  (logo "ge…sh" sombre, pour fond clair)
- *  - variant "footer" → logo-bas.svg   (logo "mosh" du pied de page)
- *  - variant "dark"   → logo-haut.svg inversé (pour fond sombre)
+ * Assets exacts extraits des exports Figma :
+ *  - variant "light"  → /logo-geosh-light.svg (encre #1A1A1A, fond clair)
+ *  - variant "dark"   → /logo-geosh-dark.svg  (encre blanche, fond #1A1A1A)
+ *  - variant "footer" → /logo-bas.svg         (logo "m( )sh", 80×21)
  *
- * `height` pilote la taille (largeur auto). Accepte une valeur CSS
- * (ex: number en px, ou "clamp(40px, 6vw, 60px)").
+ * Dimensions maquette : header 241×51.78 (le contenu visible "ge( )sh"
+ * occupe la partie droite), footer 80×21. Par défaut, `height` reprend
+ * ces valeurs via u() (échelle 1440).
  */
 type LogoProps = {
   variant?: "light" | "dark" | "footer";
@@ -20,8 +22,8 @@ type LogoProps = {
 };
 
 const SRC = {
-  light: "/logo-haut.svg",
-  dark: "/logo-haut.svg",
+  light: "/logo-geosh-light.svg",
+  dark: "/logo-geosh-dark.svg",
   footer: "/logo-bas.svg",
 } as const;
 
@@ -31,23 +33,28 @@ const ALT = {
   footer: "mosh",
 } as const;
 
+const DEFAULT_HEIGHT = {
+  light: u(51.78),
+  dark: u(51.78),
+  footer: u(21),
+} as const;
+
 export default function Logo({
   variant = "light",
-  height = "clamp(40px, 6vw, 60px)",
+  height,
   alt,
   className,
   style,
 }: LogoProps) {
+  const h = height ?? DEFAULT_HEIGHT[variant];
   return (
     <img
       src={SRC[variant]}
       alt={alt ?? ALT[variant]}
       className={className}
       style={{
-        height: typeof height === "number" ? `${height}px` : height,
+        height: typeof h === "number" ? `${h}px` : h,
         width: "auto",
-        // Variante sombre : inversion best-effort pour un fond foncé.
-        filter: variant === "dark" ? "invert(1)" : undefined,
         ...style,
       }}
     />

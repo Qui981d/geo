@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
-import { MOSH } from "./tokens";
+import { MOSH, u } from "./tokens";
 
 /**
  * Bouton d'envoi circulaire (Figma : btn_enter).
+ * Mesures exactes : cercle 36 (hover 40), flèche 12×13.
  * 3 états :
- *  - Default  : cercle blanc, flèche noire
- *  - Hover    : cercle blanc plein (légèrement plus grand)
- *  - Disabled : cercle gris (#8c8c8c), flèche atténuée, non cliquable
+ *  - Default  : cercle blanc, flèche noire (#1A1A1A)
+ *  - Hover    : même chose, cercle 40
+ *  - Disabled : cercle gris (#8C8C8C), flèche gris foncé (#3A3A3A)
  */
 type BtnEnterProps = {
   onClick?: () => void;
@@ -19,11 +20,16 @@ type BtnEnterProps = {
 };
 
 function ArrowUp({ color }: { color: string }) {
-  // Flèche "vers le haut" ~12×13 (d'après le vecteur Figma).
+  // Flèche exacte de la maquette (12×13, pleine).
   return (
-    <svg width="12" height="13" viewBox="0 0 12 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <path d="M6 12.5V1.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <path d="M1 6L6 1L11 6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 12 13"
+      style={{ width: u(12), height: u(13) }}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path d="M5 13V3.8L1.4 7.4L0 6L6 0L12 6L10.6 7.4L7 3.8V13H5Z" fill={color} />
     </svg>
   );
 }
@@ -39,9 +45,9 @@ export default function BtnEnter({
   const [hover, setHover] = useState(false);
 
   const bg = disabled ? MOSH.gris3 : MOSH.blanc;
-  const arrowColor = disabled ? "rgba(255,255,255,0.85)" : MOSH.noir;
-  // Hover : le cercle occupe tout le gabarit (inset 0) ; sinon léger retrait (inset 5%).
-  const inset = disabled ? "5%" : hover ? "0" : "5%";
+  const arrowColor = disabled ? MOSH.gris1 : MOSH.noir;
+  // Hover : le cercle passe de 36 à 40 (gabarit constant de 40).
+  const inset = !disabled && hover ? "0" : "5%";
 
   return (
     <button
@@ -54,8 +60,8 @@ export default function BtnEnter({
       className={className}
       style={{
         position: "relative",
-        width: 40,
-        height: 40,
+        width: u(40),
+        height: u(40),
         padding: 0,
         border: "none",
         background: "transparent",
@@ -72,8 +78,7 @@ export default function BtnEnter({
           alignItems: "center",
           justifyContent: "center",
           background: bg,
-          borderRadius: 40,
-          boxShadow: disabled ? "none" : "0 1px 4px rgba(0,0,0,0.12)",
+          borderRadius: "50%",
           transition: "inset 0.18s ease, background 0.2s",
         }}
       >

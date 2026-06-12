@@ -9,14 +9,23 @@
 export const MOSH = {
   noir: "#1a1a1a", // "mosh le noir"
   blanc: "#ffffff", // "mosh le blanc"
+  fond: "#FDFDFD", // fond des pages claires (≠ blanc pur, cf. exports SVG)
   gris1: "#3a3a3a", // "Gris 1"
   gris2: "#6c6c6c", // "Gris 2"
   gris3: "#8c8c8c", // "Gris 3"
 } as const;
 
+/**
+ * Unité de mise à l'échelle : la maquette est dessinée sur une frame
+ * 1440×1024. `u(n)` rend exactement `n` px quand l'écran (container)
+ * fait 1440 de large, et met à l'échelle proportionnellement sinon.
+ * Nécessite un ancêtre avec `container-type: inline-size`.
+ */
+export const u = (n: number) => `${Math.round((n / 14.4) * 10000) / 10000}cqw`;
+
 /** Pile de polices pour le texte des composants (fallback Degular → Hanken). */
 export const FONT_DEGULAR =
-  "'Degular', var(--font-hanken), 'Hanken Grotesk', -apple-system, sans-serif";
+  "'Degular', var(--font-degular), var(--font-hanken), 'Hanken Grotesk', -apple-system, sans-serif";
 
 /*
  * ── Brancher la vraie police Degular (optionnel) ─────────────────────────

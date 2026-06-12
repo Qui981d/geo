@@ -1,15 +1,14 @@
 "use client";
 import { useState } from "react";
-import { MOSH, FONT_DEGULAR } from "./tokens";
+import { MOSH, FONT_DEGULAR, u } from "./tokens";
 
 /**
- * Bouton FAQ pilule (Figma : btn_faq).
+ * Bouton FAQ pilule (Figma : btn_faq + pages test_*_faq).
+ * Mesures exactes : hauteur 34, radius 17, padding horizontal 24.5, texte ~14.
  * 3 états :
- *  - Default : fond gris clair (#8c8c8c), texte noir
- *  - Hover   : fond gris moyen (#6c6c6c), texte blanc
- *  - Clic / actif : fond blanc, texte noir
- *
- * `active` force l'état "Clic" (utile pour un accordéon ouvert).
+ *  - Default : fond gris clair (#8C8C8C), texte noir
+ *  - Hover   : fond gris moyen (#6C6C6C), texte blanc
+ *  - Actif   : fond blanc, texte noir
  */
 type BtnFaqProps = {
   children: React.ReactNode;
@@ -42,17 +41,16 @@ export default function BtnFaq({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        paddingLeft: 24,
-        paddingRight: 24,
-        paddingTop: 12,
-        paddingBottom: 12,
-        borderRadius: 20,
+        height: u(34),
+        paddingLeft: u(24.5),
+        paddingRight: u(24.5),
+        borderRadius: u(17),
         background: bg,
         color,
         border: "none",
         fontFamily: FONT_DEGULAR,
-        fontSize: 16,
-        lineHeight: 1.3,
+        fontSize: u(14),
+        lineHeight: 1,
         fontWeight: 400,
         whiteSpace: "nowrap",
         cursor: "pointer",

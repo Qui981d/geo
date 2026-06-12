@@ -1,12 +1,11 @@
 import MoshFunnel from "../components/MoshFunnel";
-import FaqReassurance from "../components/sections/FaqReassurance";
 import { SITE_URL } from "../lib/constants";
 
 export default function Home() {
   const currentDate = new Date().toISOString().split('T')[0];
 
   return (
-    <main id="main-content" role="main" className="min-h-screen bg-white">
+    <main id="main-content" role="main" className="min-h-screen" style={{ background: "#FDFDFD" }}>
       {/* 
         BLOC SÉMANTIQUE INVISIBLE (GEO)
         Ce contenu est lu par Googlebot, GPTBot, ClaudeBot, PerplexityBot, etc.
@@ -255,10 +254,10 @@ export default function Home() {
       </article>
 
       {/* L'expérience Visuelle Client (Tunnel MOSH) */}
+      {/* Note : la FAQ visible vit désormais DANS le chat (pilules, cf. maquette
+          test_*_faq) — l'ancien bloc <FaqReassurance /> n'existe pas dans les
+          maquettes de pages et a été retiré du rendu. */}
       <MoshFunnel />
-
-      {/* Bloc 7 : Réassurance Secondaire (accordéon — Figma btn_faq) */}
-      <FaqReassurance />
     </main>
   );
 }

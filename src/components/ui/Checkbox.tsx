@@ -1,15 +1,17 @@
 "use client";
-import { MOSH, FONT_DEGULAR } from "./tokens";
+import { MOSH, FONT_DEGULAR, u } from "./tokens";
 
 /**
  * Case à cocher Oui / Non (Figma : check_box_oui_1/2, check_box_non_1/2).
  *
- * Un seul composant couvre les 4 frames de la maquette via 2 props :
- *  - `checked` : la case est sélectionnée → le smiley apparaît dans la case
- *                (sourire pour "oui", grimace pour "non").
- *  - `struck`  : le libellé est barré (cas où l'AUTRE option est choisie).
+ * Mesures exactes de la maquette (frame 1440) :
+ *  - case 46×46, radius 3, bordure 2, fond blanc
+ *  - libellé ~57px (cap height 41.3), gap case→libellé 27
+ *  - barré : trait de 3.2 d'épaisseur qui déborde de ~4.5 de chaque côté
+ *  - smiley centré dans la case (34 de large)
  *
- * Smileys réutilisés depuis /public : smiley-oui.svg & smiley-non.svg.
+ *  - `checked` : la case est sélectionnée → le smiley apparaît dans la case
+ *  - `struck`  : le libellé est barré (cas où l'AUTRE option est choisie)
  */
 type CheckboxProps = {
   type: "oui" | "non";
@@ -42,7 +44,7 @@ export default function Checkbox({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "clamp(14px, 2vw, 24px)",
+        gap: u(27),
         cursor: "pointer",
         userSelect: "none",
         ...style,
@@ -52,10 +54,12 @@ export default function Checkbox({
       <span
         aria-hidden
         style={{
-          width: "clamp(46px, 7vw, 64px)",
-          height: "clamp(46px, 7vw, 64px)",
-          border: `2.5px solid ${MOSH.noir}`,
-          borderRadius: 8,
+          width: u(46),
+          height: u(46),
+          background: MOSH.blanc,
+          border: `${u(2)} solid ${MOSH.noir}`,
+          borderRadius: u(3),
+          boxSizing: "border-box",
           flexShrink: 0,
           display: "flex",
           alignItems: "center",
@@ -66,7 +70,7 @@ export default function Checkbox({
           <img
             src={SMILEYS[type]}
             alt=""
-            style={{ width: "56%", height: "auto" }}
+            style={{ width: u(34), height: "auto" }}
           />
         )}
       </span>
@@ -74,15 +78,29 @@ export default function Checkbox({
       {/* Le libellé */}
       <span
         style={{
+          position: "relative",
           fontFamily: FONT_DEGULAR,
-          fontSize: "clamp(2rem, 6vw, 3.4rem)",
-          fontWeight: 500,
+          fontSize: u(57.3),
+          lineHeight: 1,
+          fontWeight: 450,
           color: MOSH.noir,
-          textDecoration: struck ? "line-through" : "none",
-          textDecorationThickness: "0.06em",
+          whiteSpace: "nowrap",
         }}
       >
         {LABELS[type]}
+        {struck && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: u(-4.5),
+              right: u(-4),
+              top: "54%",
+              height: u(3.2),
+              background: MOSH.noir,
+            }}
+          />
+        )}
       </span>
     </div>
   );

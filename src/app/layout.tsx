@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Bebas_Neue, Courier_Prime, Hanken_Grotesk } from "next/font/google";
+import { Inter, Bebas_Neue, Courier_Prime, Hanken_Grotesk, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { SITE_URL, SITE_NAME, BRAND_NAME } from "../lib/constants";
 import SkipToContent from "../components/SkipToContent";
@@ -29,6 +29,13 @@ const courierPrime = Courier_Prime({
 const hankenGrotesk = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-hanken",
+  display: "swap",
+});
+
+// Alternative gratuite proche de "Degular" (maquette Figma) — usage commercial OK.
+const schibstedGrotesk = Schibsted_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-degular",
   display: "swap",
 });
 
@@ -339,7 +346,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" className={`${inter.variable} ${bebasNeue.variable} ${courierPrime.variable} ${hankenGrotesk.variable}`}>
+    <html lang="fr" className={`${inter.variable} ${bebasNeue.variable} ${courierPrime.variable} ${hankenGrotesk.variable} ${schibstedGrotesk.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
