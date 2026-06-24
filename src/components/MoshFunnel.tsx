@@ -431,10 +431,6 @@ export default function MoshFunnel() {
         fontFamily: FONT_DEGULAR,
         color: MOSH.noir,
         minHeight: "100svh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
       }}
     >
       {/* Style du placeholder de l'input chat (couleur maquette #8C8C8C) */}
@@ -454,9 +450,8 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              width: "min(100%, calc(100svh * 1440 / 1024))",
+              width: "100%",
               aspectRatio: "1440 / 1024",
-              flexShrink: 0,
               overflow: "hidden",
               background: MOSH.fond,
               color: MOSH.noir,
@@ -585,9 +580,8 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              width: "min(100%, calc(100svh * 1440 / 1024))",
+              width: "100%",
               aspectRatio: "1440 / 1024",
-              flexShrink: 0,
               overflow: "hidden",
               background: MOSH.noir,
               containerType: "inline-size",
