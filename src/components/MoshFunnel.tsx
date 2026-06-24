@@ -430,8 +430,11 @@ export default function MoshFunnel() {
       style={{
         fontFamily: FONT_DEGULAR,
         color: MOSH.noir,
-        minHeight: "100vh",
-        containerType: "inline-size",
+        minHeight: "100svh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
       {/* Style du placeholder de l'input chat (couleur maquette #8C8C8C) */}
@@ -451,12 +454,13 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              height: "100vh",
-              minHeight: u(700),
-              width: "100%",
+              width: "min(100%, calc(100svh * 1440 / 1024))",
+              aspectRatio: "1440 / 1024",
+              flexShrink: 0,
               overflow: "hidden",
               background: MOSH.fond,
               color: MOSH.noir,
+              containerType: "inline-size",
             }}
           >
             {/* Logo en haut à droite */}
@@ -581,11 +585,12 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              height: "100vh",
-              minHeight: u(700),
-              width: "100%",
+              width: "min(100%, calc(100svh * 1440 / 1024))",
+              aspectRatio: "1440 / 1024",
+              flexShrink: 0,
               overflow: "hidden",
               background: MOSH.noir,
+              containerType: "inline-size",
             }}
           >
             {/* Logo blanc en haut à droite */}
@@ -757,7 +762,7 @@ export default function MoshFunnel() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
+            style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
           >
             <div style={{ maxWidth: 600, width: "100%", textAlign: "center" }}>
               <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score express</p>
@@ -811,7 +816,7 @@ export default function MoshFunnel() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
+            style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
           >
             <div style={{ maxWidth: 520, width: "100%" }}>
               <h2 style={{ fontSize: "clamp(1.6rem, 4vw, 2.2rem)", fontWeight: 700, marginBottom: 12, color: MOSH.noir }}>On peut vous envoyer l&apos;audit complet.</h2>
@@ -858,7 +863,7 @@ export default function MoshFunnel() {
             key="success"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center", background: MOSH.fond }}
+            style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center", background: MOSH.fond }}
           >
             <div style={{ maxWidth: 520, width: "100%" }}>
               <h2 style={{ fontSize: "clamp(1.8rem, 4vw, 2.4rem)", fontWeight: 700, marginBottom: 12, color: MOSH.noir }}>Audit envoyé.</h2>
