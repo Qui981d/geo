@@ -580,8 +580,9 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              width: "100%",
+              width: "min(100%, calc(100svh * 1440 / 1024))",
               aspectRatio: "1440 / 1024",
+              marginInline: "auto",
               overflow: "hidden",
               background: MOSH.noir,
               containerType: "inline-size",
