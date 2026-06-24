@@ -580,14 +580,25 @@ export default function MoshFunnel() {
             exit={{ opacity: 0 }}
             style={{
               position: "relative",
-              width: "min(100%, calc(100svh * 1440 / 1024))",
-              aspectRatio: "1440 / 1024",
-              marginInline: "auto",
+              width: "100%",
+              minHeight: "100svh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               overflow: "hidden",
               background: MOSH.noir,
-              containerType: "inline-size",
             }}
           >
+            {/* Cadre intérieur à l'échelle (ratio maquette), centré dans le fond noir */}
+            <div
+              style={{
+                position: "relative",
+                width: "min(100%, calc(100svh * 1440 / 1024))",
+                aspectRatio: "1440 / 1024",
+                flexShrink: 0,
+                containerType: "inline-size",
+              }}
+            >
             {/* Logo blanc en haut à droite */}
             <Logo
               variant="dark"
@@ -745,6 +756,7 @@ export default function MoshFunnel() {
             </div>
 
             <MoshFooter dark />
+            </div>
           </motion.div>
         )}
 
