@@ -1,17 +1,23 @@
 "use client";
-import { u } from "./tokens";
+import { useState } from "react";
+import { MOSH, FONT_DEGULAR, u } from "./tokens";
 
 /**
- * Logo de la marque (Figma : logo_light, logo_dark, logo_mosh_footer).
+ * Logo de la marque "ge( )sh".
  *
- * Assets exacts extraits des exports Figma :
- *  - variant "light"  → /logo-geosh-light.svg (encre #1A1A1A, fond clair)
- *  - variant "dark"   → /logo-geosh-dark.svg  (encre blanche, fond #1A1A1A)
- *  - variant "footer" → /logo-bas.svg         (logo "m( )sh", 80×21)
+ * Le "o" de "geosh" est remplacé par une paire de parenthèses — exactement
+ * comme le titre du hero ("tr( … )uve"). Au survol, les parenthèses s'ouvrent
+ * et logent la signature « le GEO en plus mosh » entre elles.
  *
- * Dimensions maquette : header 241×51.78 (le contenu visible "ge( )sh"
- * occupe la partie droite), footer 80×21. Par défaut, `height` reprend
- * ces valeurs via u() (échelle 1440).
+ * Géométrie Figma (logo_dark / logo_light) :
+ *  - le ")sh" est à la MÊME position dans les deux états (s≈x281, h≈x308) :
+ *    il reste fixe. Seul "ge(" glisse vers la gauche et la signature apparaît.
+ *  - le logo header est ancré en haut à DROITE → il s'ouvre vers la gauche.
+ *  - boîte du sigle ~51.78 de haut (échelle 1440), signature ~167 de large.
+ *
+ *  - variant "light" → encre #1A1A1A (fond clair)
+ *  - variant "dark"  → encre blanche (fond #1A1A1A)
+ *  - variant "footer" → image "m( )sh" (80×21), inchangé
  */
 type LogoProps = {
   variant?: "light" | "dark" | "footer";
@@ -21,23 +27,7 @@ type LogoProps = {
   style?: React.CSSProperties;
 };
 
-const SRC = {
-  light: "/logo-geosh-light.svg",
-  dark: "/logo-geosh-dark.svg",
-  footer: "/logo-bas.svg",
-} as const;
-
-const ALT = {
-  light: "geosh — le GEO en plus mosh",
-  dark: "geosh — le GEO en plus mosh",
-  footer: "mosh",
-} as const;
-
-const DEFAULT_HEIGHT = {
-  light: u(51.78),
-  dark: u(51.78),
-  footer: u(21),
-} as const;
+const ALT = "geosh — le GEO en plus mosh";
 
 export default function Logo({
   variant = "light",
@@ -46,17 +36,68 @@ export default function Logo({
   className,
   style,
 }: LogoProps) {
-  const h = height ?? DEFAULT_HEIGHT[variant];
+  const [hover, setHover] = useState(false);
+
+  // Footer : asset image inchangé.
+  if (variant === "footer") {
+    const h = height ?? u(21);
+    return (
+      <img
+        src="/logo-bas.svg"
+        alt={alt ?? "mosh"}
+        className={className}
+        style={{ height: typeof h === "number" ? `${h}px` : h, width: "auto", ...style }}
+      />
+    );
+  }
+
+  const ink = variant === "dark" ? MOSH.blanc : MOSH.noir;
+
   return (
-    <img
-      src={SRC[variant]}
-      alt={alt ?? ALT[variant]}
+    <div
       className={className}
+      aria-label={alt ?? ALT}
+      role="img"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
-        height: typeof h === "number" ? `${h}px` : h,
-        width: "auto",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        height: typeof height === "number" ? `${height}px` : height ?? u(51.78),
+        color: ink,
+        fontFamily: FONT_DEGULAR,
+        fontWeight: 400,
+        lineHeight: 1,
+        whiteSpace: "nowrap",
+        cursor: "default",
+        userSelect: "none",
         ...style,
       }}
-    />
+    >
+      <span aria-hidden style={{ fontSize: u(50) }}>ge(</span>
+
+      {/* Signature révélée au survol entre les parenthèses */}
+      <span
+        aria-hidden
+        style={{
+          display: "inline-block",
+          overflow: "hidden",
+          // Au repos : écart ~33u entre "(" et ")" (cf. export Figma, "(" à
+          // x228 et ")" à x270). Au survol : place pour la signature (~170u).
+          maxWidth: hover ? u(170) : u(33),
+          opacity: hover ? 1 : 0,
+          marginLeft: hover ? u(7) : 0,
+          marginRight: hover ? u(7) : 0,
+          fontSize: u(17),
+          transition: "max-width 0.4s ease, opacity 0.3s ease, margin 0.4s ease",
+          transform: "translateY(-0.06em)",
+        }}
+      >
+        le GEO en plus mosh
+      </span>
+
+      <span aria-hidden style={{ fontSize: u(50) }}>)sh</span>
+    </div>
   );
 }
