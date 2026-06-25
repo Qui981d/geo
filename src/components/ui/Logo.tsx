@@ -1,19 +1,20 @@
 "use client";
 import { useState } from "react";
-import { MOSH, FONT_DEGULAR, u } from "./tokens";
+import { u } from "./tokens";
 
 /**
  * Logo de la marque "ge( )sh".
  *
- * Le "o" de "geosh" est remplacé par une paire de parenthèses — exactement
- * comme le titre du hero ("tr( … )uve"). Au survol, les parenthèses s'ouvrent
- * et logent la signature « le GEO en plus mosh » entre elles.
+ * Le "o" de "geosh" est une paire de parenthèses. Au survol, elles s'ouvrent
+ * et logent la signature « le GEO en plus mosh » — comme le titre du hero.
  *
- * Géométrie Figma (logo_dark / logo_light) :
- *  - le ")sh" est à la MÊME position dans les deux états (s≈x281, h≈x308) :
- *    il reste fixe. Seul "ge(" glisse vers la gauche et la signature apparaît.
- *  - le logo header est ancré en haut à DROITE → il s'ouvre vers la gauche.
- *  - boîte du sigle ~51.78 de haut (échelle 1440), signature ~167 de large.
+ * IMPORTANT : on utilise les VRAIS vecteurs de l'export Figma (police Degular),
+ * pas du texte vivant (la police n'est pas installée → les glyphes seraient
+ * faux). Deux assets découpés depuis logo_light/logo_dark :
+ *  - logo-rest-*  → "ge( )sh" resserré (la signature est masquée dans l'export)
+ *  - logo-hover-* → "ge( le GEO en plus mosh )sh" déployé
+ * Le ")sh" est au même endroit (même bord droit de viewBox) dans les deux états,
+ * donc en alignant les deux assets à DROITE, seul "ge(" + la signature changent.
  *
  *  - variant "light" → encre #1A1A1A (fond clair)
  *  - variant "dark"  → encre blanche (fond #1A1A1A)
@@ -28,6 +29,10 @@ type LogoProps = {
 };
 
 const ALT = "geosh — le GEO en plus mosh";
+
+// Hauteur (échelle 1440) et largeur du sigle au repos (ratio viewBox 161.515/51.78).
+const REST_H = 51.78;
+const REST_W = 161.515;
 
 export default function Logo({
   variant = "light",
@@ -51,53 +56,36 @@ export default function Logo({
     );
   }
 
-  const ink = variant === "dark" ? MOSH.blanc : MOSH.noir;
+  const rest = `/logo-rest-${variant}.svg`;
+  const hovered = `/logo-hover-${variant}.svg`;
+  const boxH = typeof height === "number" ? `${height}px` : height ?? u(REST_H);
+
+  const imgBase: React.CSSProperties = {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    height: "100%",
+    width: "auto",
+    transition: "opacity 0.3s ease",
+  };
 
   return (
     <div
       className={className}
-      aria-label={alt ?? ALT}
       role="img"
+      aria-label={alt ?? ALT}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        height: typeof height === "number" ? `${height}px` : height ?? u(51.78),
-        color: ink,
-        fontFamily: FONT_DEGULAR,
-        fontWeight: 400,
-        lineHeight: 1,
-        whiteSpace: "nowrap",
-        cursor: "default",
-        userSelect: "none",
+        position: "absolute",
+        height: boxH,
+        width: u(REST_W),
+        overflow: "visible",
         ...style,
       }}
     >
-      <span aria-hidden style={{ fontSize: u(50) }}>ge(</span>
-
-      {/* Signature révélée au survol entre les parenthèses */}
-      <span
-        aria-hidden
-        style={{
-          display: "inline-block",
-          overflow: "hidden",
-          // Au repos : écart ~33u entre "(" et ")" (cf. export Figma, "(" à
-          // x228 et ")" à x270). Au survol : place pour la signature (~170u).
-          maxWidth: hover ? u(170) : u(33),
-          opacity: hover ? 1 : 0,
-          marginLeft: hover ? u(7) : 0,
-          marginRight: hover ? u(7) : 0,
-          fontSize: u(17),
-          transition: "max-width 0.4s ease, opacity 0.3s ease, margin 0.4s ease",
-          transform: "translateY(-0.06em)",
-        }}
-      >
-        le GEO en plus mosh
-      </span>
-
-      <span aria-hidden style={{ fontSize: u(50) }}>)sh</span>
+      <img src={rest} alt="" aria-hidden style={{ ...imgBase, opacity: hover ? 0 : 1 }} />
+      <img src={hovered} alt="" aria-hidden style={{ ...imgBase, opacity: hover ? 1 : 0 }} />
     </div>
   );
 }
