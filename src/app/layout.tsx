@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Inter, Bebas_Neue, Courier_Prime, Hanken_Grotesk, Schibsted_Grotesk } from "next/font/google";
+import { Inter, Bebas_Neue, Courier_Prime, Hanken_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SITE_URL, SITE_NAME, BRAND_NAME } from "../lib/constants";
 import SkipToContent from "../components/SkipToContent";
@@ -32,9 +33,17 @@ const hankenGrotesk = Hanken_Grotesk({
   display: "swap",
 });
 
-// Alternative gratuite proche de "Degular" (maquette Figma) — usage commercial OK.
-const schibstedGrotesk = Schibsted_Grotesk({
-  subsets: ["latin"],
+// Vraie police de la marque "Degular" (maquette Figma), auto-hébergée.
+const degular = localFont({
+  src: [
+    { path: "./fonts/Degular-Light.otf", weight: "300", style: "normal" },
+    { path: "./fonts/Degular-Regular.otf", weight: "400", style: "normal" },
+    { path: "./fonts/Degular-RegularItalic.otf", weight: "400", style: "italic" },
+    { path: "./fonts/Degular-Medium.otf", weight: "500", style: "normal" },
+    { path: "./fonts/Degular-Semibold.otf", weight: "600", style: "normal" },
+    { path: "./fonts/Degular-Bold.otf", weight: "700", style: "normal" },
+    { path: "./fonts/Degular-Black.otf", weight: "900", style: "normal" },
+  ],
   variable: "--font-degular",
   display: "swap",
 });
@@ -346,7 +355,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" className={`${inter.variable} ${bebasNeue.variable} ${courierPrime.variable} ${hankenGrotesk.variable} ${schibstedGrotesk.variable}`}>
+    <html lang="fr" className={`${inter.variable} ${bebasNeue.variable} ${courierPrime.variable} ${hankenGrotesk.variable} ${degular.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
