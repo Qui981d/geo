@@ -730,8 +730,8 @@ export default function MoshFunnel() {
                 />
               </div>
 
-              {/* Pilules FAQ */}
-              <div style={{ display: "flex", gap: u(20), marginTop: u(CHAT_GEO.pillGap) }}>
+              {/* Pilules FAQ — centrées sous la barre de saisie */}
+              <div style={{ display: "flex", justifyContent: "center", gap: u(20), marginTop: u(CHAT_GEO.pillGap) }}>
                 {FAQ_ITEMS.map((item, i) => (
                   <BtnFaq
                     key={i}
