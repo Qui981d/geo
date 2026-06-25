@@ -470,26 +470,13 @@ export default function MoshFunnel() {
             style={{
               position: "relative",
               width: "100%",
-              minHeight: "100svh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              aspectRatio: "1440 / 1024",
               overflow: "hidden",
               background: MOSH.fond,
               color: MOSH.noir,
+              containerType: "inline-size",
             }}
           >
-            {/* Cadre intérieur à l'échelle (ratio maquette), dimensionné pour
-                tenir dans la hauteur de l'écran → le footer reste toujours visible. */}
-            <div
-              style={{
-                position: "relative",
-                width: "min(100%, calc(100svh * 1440 / 1024))",
-                aspectRatio: "1440 / 1024",
-                flexShrink: 0,
-                containerType: "inline-size",
-              }}
-            >
             {/* Logo en haut à droite */}
             <Logo
               variant="light"
@@ -624,7 +611,6 @@ export default function MoshFunnel() {
             </AnimatePresence>
 
             <MoshFooter />
-            </div>
           </motion.div>
         )}
 
