@@ -20,6 +20,7 @@ const HERO_GEO = {
   sloganFont: 17,
   sloganLh: 24,
   sloganRaise: 13.8, // baseline du slogan au-dessus de la baseline du titre
+  parenRaise: 2, // verticalAlign des parenthèses vectorielles (bas ≈ baseline du titre)
   checkboxTop: 605,
   checkboxNonLeft: 396,
   accrocheTop: 676, // [calibré] cap à y=682.2
@@ -28,6 +29,24 @@ const HERO_GEO = {
   ctaTop: 776,
   logoTop: 40,
   logoRight: 40,
+} as const;
+
+/**
+ * Parenthèses du titre "tr( … )uve" — VRAIS vecteurs Figma (export Frame 16),
+ * pas du texte : la police réduite à la bonne hauteur donnait un trait trop
+ * fin. Chaque paren fait 18.762 × 59.5 (espace maquette 1440).
+ */
+const PAREN = {
+  w: 18.762,
+  h: 59.5,
+  open: {
+    vb: "354.128 17.5 18.762 59.5",
+    d: "M372.89 77C366.462 68.6179 362.673 58.3465 362.673 47.25C362.673 36.1535 366.473 25.8821 372.89 17.5H365.322C358.276 25.9473 354.128 36.1969 354.128 47.25C354.128 58.3031 358.276 68.5419 365.322 77H372.89Z",
+  },
+  close: {
+    vb: "549.89 17.5 18.762 59.5",
+    d: "M557.458 17.5H549.89C556.318 25.8821 560.107 36.1535 560.107 47.25C560.107 58.3465 556.307 68.6179 549.89 77H557.458C564.504 68.5527 568.652 58.3031 568.652 47.25C568.652 36.1969 564.504 25.9581 557.458 17.5Z",
+  },
 } as const;
 
 const CHAT_GEO = {
@@ -497,7 +516,20 @@ export default function MoshFunnel() {
               }}
             >
               Est-ce que l&apos;IA<br />
-              vous tr(
+              vous tr
+              <svg
+                viewBox={PAREN.open.vb}
+                aria-hidden
+                style={{
+                  display: "inline-block",
+                  width: u(PAREN.w),
+                  height: u(PAREN.h),
+                  verticalAlign: u(HERO_GEO.parenRaise),
+                  fill: "currentColor",
+                }}
+              >
+                <path d={PAREN.open.d} />
+              </svg>
               <span
                 style={{
                   display: "inline-block",
@@ -512,7 +544,20 @@ export default function MoshFunnel() {
               >
                 sur les moteurs<br />de recherche
               </span>
-              )uve<br />
+              <svg
+                viewBox={PAREN.close.vb}
+                aria-hidden
+                style={{
+                  display: "inline-block",
+                  width: u(PAREN.w),
+                  height: u(PAREN.h),
+                  verticalAlign: u(HERO_GEO.parenRaise),
+                  fill: "currentColor",
+                }}
+              >
+                <path d={PAREN.close.d} />
+              </svg>
+              uve<br />
               avant&nbsp;vos<br />
               concurrents?
             </h1>
