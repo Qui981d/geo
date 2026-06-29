@@ -189,6 +189,7 @@ function UserBubble({ content }: { content: string }) {
         background: MOSH.blanc,
         color: MOSH.noir,
         borderRadius: u(27),
+        borderBottomRightRadius: 0, // coin carré → la queue se raccorde sans trou
         minHeight: u(CHAT_GEO.bulleH),
         display: "flex",
         alignItems: "center",
