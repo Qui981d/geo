@@ -91,21 +91,30 @@ const FAQ_ITEMS = [
    SOUS-COMPOSANTS
    ═══════════════════════════════════════════════ */
 
-/** Footer 3 zones, identique sur toutes les pages (couleur selon le fond). */
-function MoshFooter({ dark = false }: { dark?: boolean }) {
+/**
+ * Footer 3 zones, identique sur toutes les pages (couleur selon le fond).
+ * `fixed` : collé en bas de l'écran (hero pleine largeur) au lieu du bas du
+ * cadre. On lui donne alors un fond + un padding vertical pour former une
+ * barre nette (le contenu qui passe dessous est proprement masqué).
+ */
+function MoshFooter({ dark = false, fixed = false }: { dark?: boolean; fixed?: boolean }) {
   const color = dark ? MOSH.blanc : MOSH.noir;
   return (
     <div
       style={{
-        position: "absolute",
+        position: fixed ? "fixed" : "absolute",
         left: 0,
         right: 0,
-        bottom: u(30),
+        bottom: fixed ? 0 : u(30),
+        zIndex: 5,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         paddingLeft: u(41),
         paddingRight: u(40),
+        paddingTop: fixed ? u(18) : 0,
+        paddingBottom: fixed ? u(30) : 0,
+        background: fixed ? (dark ? MOSH.noir : MOSH.fond) : undefined,
         gap: u(16),
         fontFamily: FONT_DEGULAR,
         fontSize: u(14),
@@ -610,7 +619,7 @@ export default function MoshFunnel() {
               )}
             </AnimatePresence>
 
-            <MoshFooter />
+            <MoshFooter fixed />
           </motion.div>
         )}
 
