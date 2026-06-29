@@ -322,6 +322,23 @@ export default function MoshFunnel() {
     }, 1200);
   };
 
+  /* ── Retour au début : réinitialise tout le tunnel ── */
+  const resetToHero = () => {
+    abortRef.current?.abort();
+    setFunnelState("hero");
+    setChoice("none");
+    setChatStep("greeting");
+    setMessages([]);
+    setInputValue("");
+    setInputDisabled(true);
+    setIsThinking(false);
+    setIsStreaming(false);
+    setStreamingContent("");
+    setOpenFaq(null);
+    setNom(""); setSite(""); setActivite(""); setZone(""); setConcurrents(""); setEmail("");
+    setDiagnosticResult(null);
+  };
+
   /* ── Bot reply helper ── */
   const botReply = (msg: string, nextStep: typeof chatStep, delay = 900) => {
     setIsThinking(true);
@@ -663,6 +680,36 @@ export default function MoshFunnel() {
                 right: u(HERO_GEO.logoRight),
               }}
             />
+
+            {/* Bouton retour : revient au début du tunnel */}
+            <button
+              type="button"
+              onClick={resetToHero}
+              aria-label="Revenir au début"
+              style={{
+                position: "absolute",
+                top: u(HERO_GEO.logoTop),
+                left: u(HERO_GEO.logoRight),
+                zIndex: 4,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: u(8),
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                color: MOSH.blanc,
+                fontFamily: FONT_DEGULAR,
+                fontSize: u(16),
+                fontWeight: 400,
+                cursor: "pointer",
+                opacity: 0.85,
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden style={{ width: u(20), height: u(20), fill: "none", stroke: MOSH.blanc, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              Retour
+            </button>
 
             {/* Zone messages (scroll) */}
             <div
