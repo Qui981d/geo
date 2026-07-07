@@ -661,13 +661,12 @@ export default function MoshFunnel() {
               background: MOSH.noir,
             }}
           >
-            {/* Cadre intérieur à l'échelle (ratio maquette), centré dans le fond noir */}
+            {/* Cadre plein écran (échelle sur la largeur), footer/input ancrés en bas */}
             <div
               style={{
                 position: "relative",
-                width: "min(100%, calc(100svh * 1440 / 1024))",
-                aspectRatio: "1440 / 1024",
-                flexShrink: 0,
+                width: "100%",
+                height: "100svh",
                 containerType: "inline-size",
               }}
             >
@@ -720,7 +719,7 @@ export default function MoshFunnel() {
                 left: u(CHAT_GEO.colGauche),
                 width: u(CHAT_GEO.colLargeur),
                 top: u(CHAT_GEO.zoneTop),
-                bottom: u(1024 - 748.75 + 20),
+                bottom: u(230), // au-dessus du bloc input ancré en bas
                 overflowY: "auto",
                 display: "flex",
                 flexDirection: "column",
@@ -767,14 +766,13 @@ export default function MoshFunnel() {
               }}
             />
 
-            {/* Bloc bas : input + pilules FAQ + réponse — centré sur y=804.4 */}
+            {/* Bloc bas : input + pilules FAQ + réponse — ancré au-dessus du footer */}
             <div
               style={{
                 position: "absolute",
                 left: u(CHAT_GEO.colGauche),
                 width: u(CHAT_GEO.colLargeur),
-                top: u(CHAT_GEO.blocCentre),
-                transform: "translateY(-50%)",
+                bottom: u(96),
                 display: "flex",
                 flexDirection: "column",
                 zIndex: 3,
