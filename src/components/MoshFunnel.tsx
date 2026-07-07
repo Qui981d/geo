@@ -881,6 +881,31 @@ export default function MoshFunnel() {
                 {diagnosticResult.score}<span style={{ fontSize: "0.4em", color: MOSH.gris3 }}>/100</span>
               </div>
 
+              {/* La VRAIE réponse de l'IA : preuve tangible (vrais concurrents) */}
+              {diagnosticResult.rawText && (
+                <div style={{ marginTop: 32, textAlign: "left", padding: "24px 28px", borderRadius: 8, background: MOSH.noir }}>
+                  <p style={{ margin: 0, marginBottom: 16, fontSize: 13, color: MOSH.gris3 }}>
+                    On a demandé à l&apos;IA&nbsp;: <span style={{ color: MOSH.blanc }}>«&nbsp;Recommande-moi le meilleur {activite || "prestataire"} à {zone}&nbsp;»</span>
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {diagnosticResult.rawText
+                      .split(/\n{2,}/)
+                      .map((para) => para.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/^#{1,6}\s*/gm, ""))
+                      .filter((para) => para.trim())
+                      .map((para, i) => (
+                        <p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: MOSH.blanc, whiteSpace: "pre-line" }}>
+                          {renderInline(para, `raw${i}`)}
+                        </p>
+                      ))}
+                  </div>
+                  <p style={{ margin: 0, marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.12)", fontSize: 15, fontWeight: 700, color: MOSH.blanc }}>
+                    {diagnosticResult.companyFound
+                      ? `${nom} est cité — mais regardez qui l'IA met en avant.`
+                      : `${nom} n'apparaît nulle part. L'IA recommande ces entreprises à votre place.`}
+                  </p>
+                </div>
+              )}
+
               <div style={{ marginTop: 32, padding: 32, borderRadius: 4, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)` }}>
                 <h2 style={{ fontSize: "clamp(1.2rem, 3vw, 1.6rem)", fontWeight: 700, marginBottom: 20, lineHeight: 1.3, color: MOSH.noir }}>
                   {diagnosticResult.companyFound
