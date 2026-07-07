@@ -829,28 +829,32 @@ export default function MoshFunnel() {
                 ))}
               </div>
 
-              {/* Réponse FAQ (texte exact des pages test_*_faq) */}
-              <AnimatePresence>
+              {/* Réponse FAQ — hauteur animée pour que l'input glisse en douceur */}
+              <AnimatePresence initial={false} mode="wait">
                 {openFaq !== null && (
-                  <motion.p
+                  <motion.div
                     key={openFaq}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    style={{
-                      margin: 0,
-                      marginTop: u(CHAT_GEO.reponseGap),
-                      paddingLeft: u(8),
-                      maxWidth: u(650),
-                      fontSize: u(14),
-                      lineHeight: `${u(18.6)}`,
-                      color: MOSH.blanc,
-                      fontWeight: 400,
-                    }}
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: "auto", marginTop: u(CHAT_GEO.reponseGap) }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    transition={{ duration: 0.28, ease: "easeInOut" }}
+                    style={{ overflow: "hidden" }}
                   >
-                    <strong style={{ fontWeight: 700 }}>{FAQ_ITEMS[openFaq].lead}</strong>
-                    {FAQ_ITEMS[openFaq].body}
-                  </motion.p>
+                    <p
+                      style={{
+                        margin: 0,
+                        paddingLeft: u(8),
+                        maxWidth: u(650),
+                        fontSize: u(14),
+                        lineHeight: `${u(18.6)}`,
+                        color: MOSH.blanc,
+                        fontWeight: 400,
+                      }}
+                    >
+                      <strong style={{ fontWeight: 700 }}>{FAQ_ITEMS[openFaq].lead}</strong>
+                      {FAQ_ITEMS[openFaq].body}
+                    </p>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
