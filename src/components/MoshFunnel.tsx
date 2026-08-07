@@ -151,6 +151,36 @@ function renderInline(text: string, key: string) {
   );
 }
 
+/**
+ * Analyse la réponse de l'IA (liste "1. … 2. … 3. …") : renvoie le rang de
+ * l'entreprise (0 = absente) et les noms de la liste dans l'ordre.
+ */
+function extractRanking(raw: string, company: string): { rank: number; names: string[] } {
+  const c = company.toLowerCase().trim();
+  const blocks = raw.split(/(?=(?:^|\n)\s*\d+[.)]\s)/).filter((b) => /^\s*\d+[.)]\s/.test(b.trimStart()));
+  const names: string[] = [];
+  let rank = 0;
+  blocks.forEach((b, i) => {
+    const firstLine = b.replace(/^\s*\d+[.)]\s*/, "").split("\n")[0];
+    const name = firstLine
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[*#]/g, "")
+      .split(/[–—:-]/)[0]
+      .trim();
+    if (name) names.push(name);
+    if (c && c.length > 1 && rank === 0 && b.toLowerCase().includes(c)) rank = i + 1;
+  });
+  if (rank === 0 && c && c.length > 1 && raw.toLowerCase().includes(c)) rank = 1; // cité hors liste
+  return { rank, names };
+}
+
+/** "A, B et C" à partir d'une liste. */
+function frenchList(items: string[]): string {
+  const l = items.filter(Boolean);
+  if (l.length <= 1) return l[0] || "";
+  return `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`;
+}
+
 function BotText({ content }: { content: string }) {
   const paragraphs = content.split(/\n{2,}/);
   return (
@@ -247,7 +277,7 @@ function ThinkingDots() {
    TYPES
    ═══════════════════════════════════════════════ */
 interface Message { role: "user" | "assistant"; content: string; }
-interface DiagnosticResult { score: number; companyFound: boolean; rawText: string; }
+interface DiagnosticResult { score: number; companyFound: boolean; rank: number; competitors: string[]; rawText: string; }
 
 /* ═══════════════════════════════════════════════
    COMPOSANT PRINCIPAL
@@ -455,15 +485,27 @@ export default function MoshFunnel() {
       setStreamingContent("");
       setIsStreaming(false);
 
-      const found = nom.length > 2 && fullContent.toLowerCase().includes(nom.toLowerCase());
-      const score = found ? Math.floor(Math.random() * 15) + 58 : Math.floor(Math.random() * 20) + 22;
-      setDiagnosticResult({ score, companyFound: found, rawText: fullContent });
+      // Rang réel de l'entreprise dans la réponse (0 = absente) + concurrents
+      const { rank, names } = extractRanking(fullContent, nom);
+      const found = rank > 0;
+      // Score cohérent avec le rang (1er = haut, absent = bas), pas aléatoire
+      const score = rank === 1 ? 83 : rank === 2 ? 67 : rank === 3 ? 55 : rank >= 4 ? 46 : 32;
+      const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
+      const top = frenchList(names.filter((n) => n.toLowerCase() !== nom.toLowerCase()).slice(0, 3));
+      const competitors = names.filter((n) => n.toLowerCase() !== nom.toLowerCase());
+      setDiagnosticResult({ score, companyFound: found, rank, competitors, rawText: fullContent });
 
-      // Verdict message (MOSH tone)
+      // Verdict message — dépend du RANG et explique POURQUOI
+      const SIGNALS = "vos signaux : densité d'infos publiques, avis structurés, citations dans des sources d'autorité, cohérence de vos coordonnées (nom/adresse/téléphone)";
       setTimeout(() => {
-        const verdictMsg = found
-          ? `**${nom}** apparaît dans la réponse. Bonne nouvelle.\n\nMauvaise nouvelle : être cité ne veut pas dire être recommandé en premier. Et si un concurrent fait mieux sur les signaux techniques, il prendra votre place au prochain rafraîchissement.\n\nVotre score express : **${score}/100**\n\nVous êtes là, mais pas encore au bon endroit. Et ça, ça se corrige.`
-          : `**${nom}** n'apparaît nulle part dans la réponse.\n\nL'IA vient de recommander d'autres entreprises à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tomberont jamais sur vous.\n\nVotre score express : **${score}/100**\n\nAujourd'hui, vos concurrents ont plus de chances d'être cités que vous. Et ça, ça coûte des clients.`;
+        let verdictMsg: string;
+        if (rank === 1) {
+          verdictMsg = `**${nom}** sort **en 1re position**. Honnêtement, joli.\n\nMais cette place n'est pas acquise : à chaque requête, l'IA reclasse selon ${SIGNALS}. Un concurrent qui muscle ces signaux peut vous doubler au prochain rafraîchissement.\n\nVotre score : **${score}/100** — vous êtes devant, l'enjeu c'est de **verrouiller** la place.`;
+        } else if (rank >= 2) {
+          verdictMsg = `**${nom}** est cité, mais en **${rank}e position**${ahead ? `, derrière **${ahead}**` : ""}.\n\nPourquoi ? L'IA classe selon ${SIGNALS}. Vous y êtes, mais vos signaux sont un cran en dessous de ceux qui passent devant.\n\nVotre score : **${score}/100** — la 1re place est atteignable, il manque quelques réglages.`;
+        } else {
+          verdictMsg = `**${nom}** n'apparaît **nulle part**.\n\nL'IA recommande ${top ? `**${top}**` : "d'autres entreprises"} à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tombent jamais sur vous.\n\nPourquoi ? ${SIGNALS[0].toUpperCase() + SIGNALS.slice(1)} sont trop faibles pour déclencher une recommandation.\n\nVotre score : **${score}/100**.`;
+        }
 
         setMessages((prev) => [...prev, { role: "assistant", content: verdictMsg }]);
         setChatStep("verdict");
@@ -476,7 +518,7 @@ export default function MoshFunnel() {
       console.error(err);
       setIsThinking(false);
       setIsStreaming(false);
-      setDiagnosticResult({ score: 28, companyFound: false, rawText: "" });
+      setDiagnosticResult({ score: 28, companyFound: false, rank: 0, competitors: [], rawText: "" });
       setShowReport(true);
     }
   };
@@ -906,8 +948,10 @@ export default function MoshFunnel() {
                       ))}
                   </div>
                   <p style={{ margin: 0, marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.12)", fontSize: 15, fontWeight: 700, color: MOSH.blanc }}>
-                    {diagnosticResult.companyFound
-                      ? `${nom} est cité — mais regardez qui l'IA met en avant.`
+                    {diagnosticResult.rank === 1
+                      ? `${nom} sort en 1re position — mais cette place n'est pas garantie.`
+                      : diagnosticResult.rank >= 2
+                      ? `${nom} est cité en ${diagnosticResult.rank}e position. Regardez qui l'IA met devant.`
                       : `${nom} n'apparaît nulle part. L'IA recommande ces entreprises à votre place.`}
                   </p>
                 </div>
@@ -915,29 +959,42 @@ export default function MoshFunnel() {
 
               <div style={{ marginTop: 32, padding: 32, borderRadius: 4, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)` }}>
                 <h2 style={{ fontSize: "clamp(1.2rem, 3vw, 1.6rem)", fontWeight: 700, marginBottom: 20, lineHeight: 1.3, color: MOSH.noir }}>
-                  {diagnosticResult.companyFound
-                    ? "Vous êtes là. Mais pas encore au bon endroit."
+                  {diagnosticResult.rank === 1
+                    ? "Vous êtes n°1 aujourd'hui. L'enjeu : garder la place."
+                    : diagnosticResult.rank >= 2
+                    ? "Vous êtes cité, mais pas en tête."
                     : "Aujourd'hui, vos concurrents ont plus de chances d'être cités que vous."}
                 </h2>
+                <p style={{ textAlign: "left", margin: "0 0 16px", fontSize: 13, color: MOSH.gris2 }}>
+                  L&apos;IA classe les entreprises selon 4 signaux : densité d&apos;infos publiques, avis structurés, citations dans des sources d&apos;autorité, cohérence de vos coordonnées (NAP).
+                </p>
                 <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, color: MOSH.gris1, fontSize: 15 }}>
-                  {diagnosticResult.companyFound ? (
+                  {diagnosticResult.rank === 1 ? (
                     <>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>✓</span> L&apos;IA vous connaît et peut vous citer.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Mais vos signaux ne garantissent pas la première place.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous perdez encore des leads face à d&apos;autres recommandations.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>✓</span> L&apos;IA vous place <strong style={{ fontWeight: 700 }}>en premier</strong> sur cette recherche.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Ce classement se recalcule à chaque requête — rien n&apos;est acquis.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Un concurrent qui renforce ses avis, citations ou infos peut vous doubler.</p>
+                    </>
+                  ) : diagnosticResult.rank >= 2 ? (
+                    <>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>✓</span> L&apos;IA vous connaît et vous cite (position {diagnosticResult.rank}).</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> D&apos;autres passent devant : leurs signaux (avis, citations, infos) sont plus forts.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous perdez les prospects qui s&apos;arrêtent au premier nom cité.</p>
                     </>
                   ) : (
                     <>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> L&apos;IA vient de recommander d&apos;autres entreprises à votre place.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vos signaux locaux sont trop faibles pour déclencher une recommandation.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous êtes totalement invisible sur cette recherche générative.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> L&apos;IA recommande d&apos;autres entreprises à votre place.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vos signaux (avis, citations, densité d&apos;infos, cohérence NAP) sont trop faibles.</p>
+                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous êtes invisible sur cette recherche générative.</p>
                     </>
                   )}
                 </div>
               </div>
 
               <p style={{ fontSize: 16, fontWeight: 400, marginTop: 28, marginBottom: 24, color: MOSH.gris1 }}>
-                On peut vous montrer où vous disparaissez, qui prend votre place, et ce qu&apos;il faut corriger en premier.
+                {diagnosticResult.rank === 1
+                  ? "On peut vous montrer quels signaux tiennent votre 1re place — et lesquels un concurrent pourrait exploiter pour vous doubler."
+                  : "On peut vous montrer où vous perdez des places, qui passe devant, et ce qu'il faut corriger en premier."}
               </p>
               <motion.button
                 onClick={() => setFunnelState("email")}
