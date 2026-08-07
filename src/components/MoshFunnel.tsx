@@ -181,6 +181,13 @@ function frenchList(items: string[]): string {
   return `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`;
 }
 
+/** Libellé du CTA audit, adapté au rang. */
+function ctaLabel(rank: number): string {
+  if (rank === 1) return "Verrouiller ma 1re place";
+  if (rank >= 2) return "Repasser devant mes concurrents";
+  return "Débloquer mon audit complet";
+}
+
 function BotText({ content }: { content: string }) {
   const paragraphs = content.split(/\n{2,}/);
   return (
@@ -317,6 +324,7 @@ export default function MoshFunnel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const heroAccrocheRef = useRef<HTMLParagraphElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   /* ── Hero : verrou de scroll tant qu'aucun choix (évite de scroller dans le vide) ── */
   useEffect(() => {
@@ -917,13 +925,33 @@ export default function MoshFunnel() {
               </AnimatePresence>
             </div>
 
+            {/* Repère de scroll : invite à descendre vers le rapport */}
+            {showReport && (
+              <div style={{ position: "absolute", bottom: u(64), left: "50%", transform: "translateX(-50%)", zIndex: 4 }}>
+                <motion.button
+                  type="button"
+                  onClick={() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.85, y: [0, 5, 0] }}
+                  transition={{ y: { repeat: Infinity, duration: 1.6, ease: "easeInOut" }, opacity: { duration: 0.4 } }}
+                  aria-label="Voir votre rapport"
+                  style={{ display: "inline-flex", alignItems: "center", gap: u(6), background: "transparent", border: "none", padding: 0, color: MOSH.blanc, fontFamily: FONT_DEGULAR, fontSize: u(13.5), fontWeight: 400, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  votre rapport
+                  <svg viewBox="0 0 24 24" aria-hidden style={{ width: u(16), height: u(16), fill: "none", stroke: MOSH.blanc, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </motion.button>
+              </div>
+            )}
+
             <MoshFooter dark />
             </div>
 
             {/* Écran 2 — le RAPPORT, en dessous du chat : on scrolle pour le voir,
                 on reste libre de relire le chat autant qu'on veut (pas de bascule). */}
             {showReport && diagnosticResult && (
-            <div style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 40px", background: MOSH.fond }}>
+            <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 40px", background: MOSH.fond }}>
             <div style={{ maxWidth: 600, width: "100%", textAlign: "center" }}>
               <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score express</p>
               <div style={{ fontSize: "clamp(5rem, 15vw, 8rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
@@ -956,6 +984,19 @@ export default function MoshFunnel() {
                   </p>
                 </div>
               )}
+
+              {/* CTA principal — juste après le verdict (pic de motivation) */}
+              <motion.button
+                onClick={() => setFunnelState("email")}
+                whileTap={{ scale: 0.97 }}
+                style={{ marginTop: 28, background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
+              >
+                {ctaLabel(diagnosticResult.rank)}
+              </motion.button>
+
+              <p style={{ fontSize: 13, color: MOSH.gris2, marginTop: 12, marginBottom: 8 }}>
+                Gratuit · rapport détaillé sous 24h · sans engagement
+              </p>
 
               <div style={{ marginTop: 32, padding: 32, borderRadius: 4, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)` }}>
                 <h2 style={{ fontSize: "clamp(1.2rem, 3vw, 1.6rem)", fontWeight: 700, marginBottom: 20, lineHeight: 1.3, color: MOSH.noir }}>
@@ -1001,7 +1042,7 @@ export default function MoshFunnel() {
                 whileTap={{ scale: 0.97 }}
                 style={{ background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
               >
-                Débloquer mon audit complet
+                {ctaLabel(diagnosticResult.rank)}
               </motion.button>
             </div>
             </div>
