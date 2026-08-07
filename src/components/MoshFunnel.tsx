@@ -255,6 +255,7 @@ interface DiagnosticResult { score: number; companyFound: boolean; rawText: stri
 export default function MoshFunnel() {
   /* ── Funnel state ── */
   const [funnelState, setFunnelState] = useState<"hero" | "chat" | "result" | "email" | "success">("hero");
+  const [showReport, setShowReport] = useState(false); // rapport affiché SOUS le chat (pas de bascule de page)
 
   /* ── Choix Oui / Non du hero (aucun sélectionné par défaut) ── */
   const [choice, setChoice] = useState<"none" | "oui" | "non">("none");
@@ -342,6 +343,7 @@ export default function MoshFunnel() {
   const resetToHero = () => {
     abortRef.current?.abort();
     setFunnelState("hero");
+    setShowReport(false);
     setChoice("none");
     setChatStep("greeting");
     setMessages([]);
@@ -466,8 +468,8 @@ export default function MoshFunnel() {
         setMessages((prev) => [...prev, { role: "assistant", content: verdictMsg }]);
         setChatStep("verdict");
 
-        // Show the result/CTA panel after a beat
-        setTimeout(() => setFunnelState("result"), 2500);
+        // Le rapport apparaît SOUS le chat (on scrolle pour le voir), pas de bascule
+        setShowReport(true);
       }, 1500);
 
     } catch (err) {
@@ -475,7 +477,7 @@ export default function MoshFunnel() {
       setIsThinking(false);
       setIsStreaming(false);
       setDiagnosticResult({ score: 28, companyFound: false, rawText: "" });
-      setFunnelState("result");
+      setShowReport(true);
     }
   };
 
@@ -671,20 +673,16 @@ export default function MoshFunnel() {
             style={{
               position: "relative",
               width: "100%",
-              minHeight: "100svh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
               background: MOSH.noir,
             }}
           >
-            {/* Cadre plein écran (échelle sur la largeur), footer/input ancrés en bas */}
+            {/* Écran 1 — le chat, plein écran (footer/input ancrés en bas) */}
             <div
               style={{
                 position: "relative",
                 width: "100%",
                 height: "100svh",
+                overflow: "hidden",
                 containerType: "inline-size",
               }}
             >
@@ -879,20 +877,11 @@ export default function MoshFunnel() {
 
             <MoshFooter dark />
             </div>
-          </motion.div>
-        )}
 
-        {/* ═════════════════════════════════════════
-            RÉSULTAT EXPRESS (pas de page maquette — habillé aux couleurs mosh)
-            ═════════════════════════════════════════ */}
-        {funnelState === "result" && diagnosticResult && (
-          <motion.div
-            key="result"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
-          >
+            {/* Écran 2 — le RAPPORT, en dessous du chat : on scrolle pour le voir,
+                on reste libre de relire le chat autant qu'on veut (pas de bascule). */}
+            {showReport && diagnosticResult && (
+            <div style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 40px", background: MOSH.fond }}>
             <div style={{ maxWidth: 600, width: "100%", textAlign: "center" }}>
               <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score express</p>
               <div style={{ fontSize: "clamp(5rem, 15vw, 8rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
@@ -958,6 +947,8 @@ export default function MoshFunnel() {
                 Débloquer mon audit complet
               </motion.button>
             </div>
+            </div>
+            )}
           </motion.div>
         )}
 
