@@ -285,6 +285,22 @@ export default function MoshFunnel() {
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const heroAccrocheRef = useRef<HTMLParagraphElement>(null);
+
+  /* ── Hero : verrou de scroll tant qu'aucun choix (évite de scroller dans le vide) ── */
+  useEffect(() => {
+    const lock = funnelState === "hero" && choice === "none";
+    document.documentElement.style.overflow = lock ? "hidden" : "";
+    return () => { document.documentElement.style.overflow = ""; };
+  }, [funnelState, choice]);
+
+  /* ── Choix Oui/Non : enregistre + scroll auto fluide vers l'accroche ── */
+  const handleHeroChoice = (c: "oui" | "non") => {
+    setChoice(c);
+    setTimeout(() => {
+      heroAccrocheRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 140);
+  };
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, 60);
@@ -504,13 +520,14 @@ export default function MoshFunnel() {
               containerType: "inline-size",
             }}
           >
-            {/* Logo en haut à droite */}
+            {/* Logo en haut à droite — collé (fixed) même au scroll */}
             <Logo
               variant="light"
               style={{
-                position: "absolute",
+                position: "fixed",
                 top: u(HERO_GEO.logoTop),
                 right: u(HERO_GEO.logoRight),
+                zIndex: 6,
               }}
             />
 
@@ -581,14 +598,14 @@ export default function MoshFunnel() {
               type="oui"
               checked={choice === "oui"}
               struck={choice === "non"}
-              onClick={() => setChoice("oui")}
+              onClick={() => handleHeroChoice("oui")}
               style={{ position: "absolute", top: u(HERO_GEO.checkboxTop), left: u(HERO_GEO.margeGauche) }}
             />
             <Checkbox
               type="non"
               checked={choice === "non"}
               struck={choice === "oui"}
-              onClick={() => setChoice("non")}
+              onClick={() => handleHeroChoice("non")}
               style={{ position: "absolute", top: u(HERO_GEO.checkboxTop), left: u(HERO_GEO.checkboxNonLeft) }}
             />
 
@@ -602,6 +619,7 @@ export default function MoshFunnel() {
                   exit={{ opacity: 0 }}
                 >
                   <p
+                    ref={heroAccrocheRef}
                     style={{
                       position: "absolute",
                       top: u(HERO_GEO.accrocheTop),
