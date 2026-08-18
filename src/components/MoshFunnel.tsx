@@ -352,6 +352,7 @@ export default function MoshFunnel() {
   const [nom, setNom] = useState("");
   const [site, setSite] = useState("");
   const [activite, setActivite] = useState("");
+  const [searchQuery, setSearchQuery] = useState(""); // activité reformulée en catégorie cherchable par un prospect
   const [zone, setZone] = useState("");
   const [concurrents, setConcurrents] = useState("");
   const [email, setEmail] = useState("");
@@ -433,7 +434,7 @@ export default function MoshFunnel() {
     setIsStreaming(false);
     setStreamingContent("");
     setOpenFaq(null);
-    setNom(""); setSite(""); setActivite(""); setZone(""); setConcurrents(""); setEmail("");
+    setNom(""); setSite(""); setActivite(""); setSearchQuery(""); setZone(""); setConcurrents(""); setEmail("");
     setDiagnosticResult(null);
     setRedflags(null);
     setRedflagsLoading(false);
@@ -472,6 +473,24 @@ export default function MoshFunnel() {
     }, delay);
   };
 
+  /* ── Reformule l'activité brute en catégorie qu'un prospect chercherait ── */
+  const reformulateActivity = async (raw: string, ville: string): Promise<string> => {
+    try {
+      const res = await fetch("/api/reformulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activite: raw, ville }),
+      });
+      if (!res.ok) throw new Error("reformulate api error");
+      const data = await res.json();
+      const q = typeof data.query === "string" ? data.query.trim() : "";
+      return q || raw; // fallback : activité brute
+    } catch (err) {
+      console.error(err);
+      return raw;
+    }
+  };
+
   /* ── Handle user submit ── */
   const handleSubmit = () => {
     const text = inputValue.trim();
@@ -503,21 +522,24 @@ export default function MoshFunnel() {
         break;
       case "ask_objectif":
         setIsThinking(true);
-        setTimeout(() => {
+        // Reformule l'activité brute → catégorie qu'un prospect chercherait vraiment
+        reformulateActivity(activite || text, zone).then((query) => {
+          setSearchQuery(query);
           setIsThinking(false);
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"Recommande-moi les meilleurs ${activite || text} à ${zone}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
+            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"Recommande-moi les meilleurs ${query} à ${zone}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
           ]);
           setChatStep("scanning");
-          setTimeout(() => triggerApiCall(), 2000);
-        }, 1200);
+          setTimeout(() => triggerApiCall(query), 2000);
+        });
         break;
     }
   };
 
   /* ── Real API call ── */
-  const triggerApiCall = async () => {
+  const triggerApiCall = async (query?: string) => {
+    const metier = (query || searchQuery || activite).trim();
     setIsThinking(true);
     setStreamingContent("");
     abortRef.current = new AbortController();
@@ -526,7 +548,7 @@ export default function MoshFunnel() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metier: activite, ville: zone, company: nom }),
+        body: JSON.stringify({ metier, ville: zone, company: nom }),
         signal: abortRef.current.signal,
       });
 
@@ -1086,7 +1108,7 @@ export default function MoshFunnel() {
                 {dr.competitors.length > 0 && (
                   <div style={{ marginTop: 20, padding: "20px 24px", borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
                     <p style={{ margin: "0 0 14px", fontSize: 13, color: MOSH.gris3 }}>
-                      Ce que l&apos;IA répond quand un prospect demande «&nbsp;le meilleur {activite || "prestataire"} à {zone}&nbsp;» :
+                      Ce que l&apos;IA répond quand un prospect demande «&nbsp;le meilleur {searchQuery || activite || "prestataire"} à {zone}&nbsp;» :
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                       {dr.competitors.map((name, i) => {
