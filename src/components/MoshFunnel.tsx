@@ -334,6 +334,20 @@ export default function MoshFunnel() {
   /* ── FAQ du chat ── */
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  /* ── Ferme l'explication FAQ ouverte si on clique en dehors ── */
+  useEffect(() => {
+    if (openFaq === null) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (faqRef.current && !faqRef.current.contains(e.target as Node)) setOpenFaq(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+  }, [openFaq]);
+
   /* ── Collected data ── */
   const [nom, setNom] = useState("");
   const [site, setSite] = useState("");
@@ -352,6 +366,7 @@ export default function MoshFunnel() {
   const abortRef = useRef<AbortController | null>(null);
   const heroAccrocheRef = useRef<HTMLParagraphElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const faqRef = useRef<HTMLDivElement>(null);
 
   /* ── Hero : verrou de scroll tant qu'aucun choix (évite de scroller dans le vide) ── */
   useEffect(() => {
@@ -840,6 +855,7 @@ export default function MoshFunnel() {
             <div
               ref={chatRef}
               className="mosh-chat-scroll"
+              onScroll={() => { if (openFaq !== null) setOpenFaq(null); }}
               style={{
                 position: "absolute",
                 left: u(CHAT_GEO.colGauche),
@@ -973,47 +989,50 @@ export default function MoshFunnel() {
                 />
               </div>
 
-              {/* Pilules FAQ — centrées sous la barre de saisie */}
-              <div style={{ display: "flex", justifyContent: "center", gap: u(20), marginTop: u(CHAT_GEO.pillGap) }}>
-                {FAQ_ITEMS.map((item, i) => (
-                  <BtnFaq
-                    key={i}
-                    active={openFaq === i}
-                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  >
-                    {item.q}
-                  </BtnFaq>
-                ))}
-              </div>
-
-              {/* Réponse FAQ — hauteur animée pour que l'input glisse en douceur */}
-              <AnimatePresence initial={false} mode="wait">
-                {openFaq !== null && (
-                  <motion.div
-                    key={openFaq}
-                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: "auto", marginTop: u(CHAT_GEO.reponseGap) }}
-                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                    transition={{ duration: 0.28, ease: "easeInOut" }}
-                    style={{ overflow: "hidden" }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        paddingLeft: u(8),
-                        maxWidth: u(650),
-                        fontSize: u(14),
-                        lineHeight: `${u(18.6)}`,
-                        color: MOSH.blanc,
-                        fontWeight: 400,
-                      }}
+              {/* Pilules FAQ + réponse (ref pour le clic-extérieur) */}
+              <div ref={faqRef}>
+                {/* Pilules FAQ — centrées sous la barre de saisie */}
+                <div style={{ display: "flex", justifyContent: "center", gap: u(20), marginTop: u(CHAT_GEO.pillGap) }}>
+                  {FAQ_ITEMS.map((item, i) => (
+                    <BtnFaq
+                      key={i}
+                      active={openFaq === i}
+                      onClick={() => setOpenFaq(openFaq === i ? null : i)}
                     >
-                      <strong style={{ fontWeight: 700 }}>{FAQ_ITEMS[openFaq].lead}</strong>
-                      {FAQ_ITEMS[openFaq].body}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      {item.q}
+                    </BtnFaq>
+                  ))}
+                </div>
+
+                {/* Réponse FAQ — hauteur animée pour que l'input glisse en douceur */}
+                <AnimatePresence initial={false} mode="wait">
+                  {openFaq !== null && (
+                    <motion.div
+                      key={openFaq}
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: u(CHAT_GEO.reponseGap) }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      transition={{ duration: 0.28, ease: "easeInOut" }}
+                      style={{ overflow: "hidden" }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          paddingLeft: u(8),
+                          maxWidth: u(650),
+                          fontSize: u(14),
+                          lineHeight: `${u(18.6)}`,
+                          color: MOSH.blanc,
+                          fontWeight: 400,
+                        }}
+                      >
+                        <strong style={{ fontWeight: 700 }}>{FAQ_ITEMS[openFaq].lead}</strong>
+                        {FAQ_ITEMS[openFaq].body}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <MoshFooter dark />
