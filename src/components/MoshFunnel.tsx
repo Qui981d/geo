@@ -418,7 +418,7 @@ export default function MoshFunnel() {
     switch (chatStep) {
       case "ask_nom":
         setNom(text);
-        botReply(`${text} c'est bien noté.\n\n**Quelle est l'adresse de votre site internet?**\n\nSi vous n'en avez pas, indiquez l'adresse d'un compte de vos réseaux sociaux (et par pitié, ne fermez pas cette fenêtre).`, "ask_site");
+        botReply(`${text} c'est bien noté.\n\n**Quelle est l'adresse de votre site internet?**\n\nSi vous n'en avez pas, indiquez l'adresse d'un compte de vos réseaux sociaux.`, "ask_site");
         break;
       case "ask_site":
         setSite(text);
