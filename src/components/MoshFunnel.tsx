@@ -188,6 +188,31 @@ function ctaLabel(rank: number): string {
   return "Débloquer mon audit complet";
 }
 
+/**
+ * Score CALCULÉ et décomposable (fini l'arbitraire) : présence + position +
+ * base de visibilité résiduelle. Le total est la somme des 3 composantes.
+ */
+function computeScore(rank: number, n: number): { presence: number; position: number; base: number; total: number } {
+  const N = Math.max(n, 3);
+  const presence = rank > 0 ? 35 : 0;
+  const position = rank > 0 ? Math.round(40 * (N - rank + 1) / N) : 0;
+  const base = 15; // visibilité résiduelle (annuaires, mentions) — non mesurée finement en express
+  const total = Math.min(100, presence + position + base);
+  return { presence, position, base, total };
+}
+
+/** Concurrents cités par l'utilisateur qui ressortent dans la réponse de l'IA. */
+function matchMentioned(ranking: string[], userText: string): { name: string; rank: number }[] {
+  const t = (userText || "").toLowerCase();
+  if (!t.trim()) return [];
+  const out: { name: string; rank: number }[] = [];
+  ranking.forEach((name, i) => {
+    const first = name.split(/[\s–—-]+/)[0].toLowerCase();
+    if (first.length >= 3 && t.includes(first)) out.push({ name, rank: i + 1 });
+  });
+  return out;
+}
+
 function BotText({ content }: { content: string }) {
   const paragraphs = content.split(/\n{2,}/);
   return (
@@ -496,10 +521,15 @@ export default function MoshFunnel() {
       // Rang réel de l'entreprise dans la réponse (0 = absente) + concurrents
       const { rank, names } = extractRanking(fullContent, nom);
       const found = rank > 0;
-      // Score cohérent avec le rang (1er = haut, absent = bas), pas aléatoire
-      const score = rank === 1 ? 83 : rank === 2 ? 67 : rank === 3 ? 55 : rank >= 4 ? 46 : 32;
+      // Score CALCULÉ (présence + position + base), plus arbitraire
+      const score = computeScore(rank, names.length).total;
       const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
       const top = frenchList(names.filter((n) => n.toLowerCase() !== nom.toLowerCase()).slice(0, 3));
+      // Concurrents que l'utilisateur a cités et qui ressortent dans la réponse
+      const mentioned = matchMentioned(names, concurrents);
+      const callback = mentioned.length
+        ? `\n\nEt tiens — **${frenchList(mentioned.map((m) => m.name))}**, que vous avez cité${mentioned.length > 1 ? "s" : ""} : ${mentioned.length > 1 ? "ils sortent" : `il sort`} bien dans la réponse (${mentioned.map((m) => `${m.name} en ${m.rank}${m.rank === 1 ? "re" : "e"}`).join(", ")}). Vous ne les aviez pas inventés.`
+        : "";
       setDiagnosticResult({ score, companyFound: found, rank, competitors: names, rawText: fullContent });
 
       // Verdict message — dépend du RANG et explique POURQUOI
@@ -507,11 +537,11 @@ export default function MoshFunnel() {
       setTimeout(() => {
         let verdictMsg: string;
         if (rank === 1) {
-          verdictMsg = `**${nom}** sort **en 1re position**. Honnêtement, joli.\n\nMais cette place n'est pas acquise : à chaque requête, l'IA reclasse selon ${SIGNALS}. Un concurrent qui muscle ces signaux peut vous doubler au prochain rafraîchissement.\n\nVotre score : **${score}/100** — vous êtes devant, l'enjeu c'est de **verrouiller** la place.`;
+          verdictMsg = `**${nom}** sort **en 1re position**. Honnêtement, joli.\n\nMais cette place n'est pas acquise : à chaque requête, l'IA reclasse selon ${SIGNALS}. Un concurrent qui muscle ces signaux peut vous doubler au prochain rafraîchissement.\n\nVotre score : **${score}/100** — vous êtes devant, l'enjeu c'est de **verrouiller** la place.${callback}`;
         } else if (rank >= 2) {
-          verdictMsg = `**${nom}** est cité, mais en **${rank}e position**${ahead ? `, derrière **${ahead}**` : ""}.\n\nPourquoi ? L'IA classe selon ${SIGNALS}. Vous y êtes, mais vos signaux sont un cran en dessous de ceux qui passent devant.\n\nVotre score : **${score}/100** — la 1re place est atteignable, il manque quelques réglages.`;
+          verdictMsg = `**${nom}** est cité, mais en **${rank}e position**${ahead ? `, derrière **${ahead}**` : ""}.\n\nPourquoi ? L'IA classe selon ${SIGNALS}. Vous y êtes, mais vos signaux sont un cran en dessous de ceux qui passent devant.\n\nVotre score : **${score}/100** — la 1re place est atteignable, il manque quelques réglages.${callback}`;
         } else {
-          verdictMsg = `**${nom}** n'apparaît **nulle part**.\n\nL'IA recommande ${top ? `**${top}**` : "d'autres entreprises"} à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tombent jamais sur vous.\n\nPourquoi ? ${SIGNALS[0].toUpperCase() + SIGNALS.slice(1)} sont trop faibles pour déclencher une recommandation.\n\nVotre score : **${score}/100**.`;
+          verdictMsg = `**${nom}** n'apparaît **nulle part**.\n\nL'IA recommande ${top ? `**${top}**` : "d'autres entreprises"} à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tombent jamais sur vous.\n\nPourquoi ? ${SIGNALS[0].toUpperCase() + SIGNALS.slice(1)} sont trop faibles pour déclencher une recommandation.\n\nVotre score : **${score}/100**.${callback}`;
         }
 
         setMessages((prev) => [...prev, { role: "assistant", content: verdictMsg }]);
@@ -525,7 +555,7 @@ export default function MoshFunnel() {
       console.error(err);
       setIsThinking(false);
       setIsStreaming(false);
-      setDiagnosticResult({ score: 28, companyFound: false, rank: 0, competitors: [], rawText: "" });
+      setDiagnosticResult({ score: computeScore(0, 3).total, companyFound: false, rank: 0, competitors: [], rawText: "" });
       setShowReport(true);
     }
   };
@@ -965,13 +995,12 @@ export default function MoshFunnel() {
               const others = dr.competitors.filter((n) => n.toLowerCase() !== nom.toLowerCase());
               const them = frenchList(others.slice(0, 3));
               const topComp = others[0] || "un concurrent";
-              const signalLevel = dr.rank === 1 ? "plutôt bonne" : dr.rank >= 2 ? "moyenne" : "faible";
-              const posLabel = dr.rank === 1 ? "1re" : dr.rank >= 2 ? `${dr.rank}e` : "Hors classement";
-              const rows: [string, string, boolean][] = [
-                ["Présence dans la réponse de l'IA", dr.rank > 0 ? "Cité" : "Absent", dr.rank > 0],
-                ["Position dans le classement", posLabel, dr.rank === 1],
-                ["Force de vos signaux (avis, citations, densité)", `Estimée ${signalLevel}`, dr.rank === 1],
-                ["Cohérence de vos infos (NAP)", "À confirmer", false],
+              const posLabel = dr.rank === 1 ? "1re place" : dr.rank >= 2 ? `${dr.rank}e place` : "hors classement";
+              const sb = computeScore(dr.rank, dr.competitors.length);
+              const rows: [string, string, number][] = [
+                [`Présence dans la réponse (${dr.rank > 0 ? "cité" : "absent"})`, `+${sb.presence}`, sb.presence],
+                [`Position (${posLabel})`, `+${sb.position}`, sb.position],
+                ["Visibilité de base (annuaires, mentions)", `+${sb.base}`, sb.base],
               ];
               return (
               <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
@@ -983,13 +1012,20 @@ export default function MoshFunnel() {
                 </div>
 
                 <div style={{ marginTop: 28, padding: "20px 24px", borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
-                  <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>D&apos;où vient ce score</p>
-                  {rows.map(([label, val, good], i) => (
+                  <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>Comment ce score se calcule</p>
+                  {rows.map(([label, val, pts], i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "10px 0", borderTop: i ? "1px solid rgba(26,26,26,0.08)" : "none", fontSize: 14, color: MOSH.gris1 }}>
                       <span>{label}</span>
-                      <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: good ? MOSH.noir : MOSH.gris2 }}>{val}</span>
+                      <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: pts > 0 ? MOSH.noir : MOSH.gris3 }}>{val}</span>
                     </div>
                   ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "12px 0 2px", borderTop: "2px solid rgba(26,26,26,0.18)", marginTop: 4, fontSize: 15, fontWeight: 700, color: MOSH.noir }}>
+                    <span>Score de visibilité express</span>
+                    <span style={{ whiteSpace: "nowrap" }}>{dr.score}/100</span>
+                  </div>
+                  <p style={{ margin: "10px 0 0", fontSize: 12, color: MOSH.gris2, lineHeight: 1.5 }}>
+                    Ce score express mesure votre <strong style={{ fontWeight: 700 }}>présence et votre position</strong>. La <strong style={{ fontWeight: 700 }}>force fine de vos signaux</strong> (avis, citations, cohérence NAP) est notée dans l&apos;audit complet.
+                  </p>
                 </div>
 
                 {/* Le classement (preuve condensée, pas la réponse verbeuse répétée) */}
@@ -1035,6 +1071,9 @@ export default function MoshFunnel() {
                     <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Densité d&apos;infos</strong> — adresse, horaires, services, à jour et détaillés.</p>
                     <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Cohérence (NAP)</strong> — mêmes nom / adresse / téléphone partout.</p>
                   </div>
+                  <p style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.6, color: MOSH.gris1 }}>
+                    Et ce n&apos;est pas qu&apos;une checklist. L&apos;IA reconstruit une <strong style={{ fontWeight: 700 }}>entité</strong> à partir de dizaines de sources et croise leur <strong style={{ fontWeight: 700 }}>cohérence</strong>, leur <strong style={{ fontWeight: 700 }}>fraîcheur</strong> et l&apos;<strong style={{ fontWeight: 700 }}>autorité</strong> de chacune (logique E-E-A-T, données structurées Schema.org, entités nommées). Chaque moteur — ChatGPT, Perplexity, Gemini — les pondère différemment : être devant sur l&apos;un ne garantit rien sur les autres. Et comme ces signaux se renforcent mutuellement sur plusieurs semaines, il n&apos;existe pas d&apos;astuce unique — il faut savoir <strong style={{ fontWeight: 700 }}>lesquels</strong> traiter, <strong style={{ fontWeight: 700 }}>dans quel ordre</strong>, et sur <strong style={{ fontWeight: 700 }}>quelles sources</strong>.
+                  </p>
                   <p style={{ margin: "0 0 14px", fontSize: 15, lineHeight: 1.6, color: MOSH.gris1 }}>
                     {dr.rank === 1
                       ? `Aujourd'hui, vos signaux sont meilleurs que ceux de ${them || "vos concurrents"} sur cette recherche — c'est pour ça que l'IA vous met en premier. Mais ils s'accumulent en continu : ${topComp} n'a qu'à renforcer les siens pour repasser devant.`
