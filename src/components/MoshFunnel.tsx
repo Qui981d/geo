@@ -1084,11 +1084,11 @@ export default function MoshFunnel() {
                 ? { c: "#E8830C", label: "Visibilité moyenne" }
                 : { c: "#E5484D", label: "Visibilité faible" };
               const R = 86, C = 2 * Math.PI * R;
-              // 3 chiffres de marché (tendance du secteur — pas les métriques de l'utilisateur)
-              const marketStats: [string, string][] = [
-                ["65%", "des recherches Google affichent déjà une réponse IA en premier"],
-                ["40%", "des questions posées aux IA ont une intention locale ou d'achat"],
-                ["3", "noms max cités par l'IA — hors du top, vous êtes invisible"],
+              // 3 chiffres de marché SOURCÉS (tendance du secteur — pas les métriques de l'utilisateur)
+              const marketStats: [string, string, string][] = [
+                ["≈ 50 %", "des recherches Google affichent déjà une réponse générée par IA", "Google, 2025"],
+                ["45 %", "des consommateurs ont utilisé l'IA pour trouver un commerce local", "BrightLocal, 2026"],
+                ["900 M", "d'utilisateurs hebdomadaires sur ChatGPT", "OpenAI, 2026"],
               ];
               return (
               <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
@@ -1232,10 +1232,11 @@ export default function MoshFunnel() {
                   <h3 style={{ margin: "0 0 4px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, color: MOSH.noir }}>Pourquoi ça devient urgent</h3>
                   <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris2 }}>La recherche bascule vers l&apos;IA — tendance du secteur.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-                    {marketStats.map(([n, label], i) => (
-                      <div key={i} style={{ padding: "16px 14px", borderRadius: 10, background: MOSH.fond, border: `1px solid rgba(26,26,26,0.08)` }}>
+                    {marketStats.map(([n, label, src], i) => (
+                      <div key={i} style={{ display: "flex", flexDirection: "column", padding: "16px 14px", borderRadius: 10, background: MOSH.fond, border: `1px solid rgba(26,26,26,0.08)` }}>
                         <div style={{ fontSize: "clamp(1.6rem, 5vw, 2.1rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1 }}>{n}</div>
-                        <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.4, color: MOSH.gris1 }}>{label}</p>
+                        <p style={{ margin: "8px 0 10px", fontSize: 12.5, lineHeight: 1.4, color: MOSH.gris1, flex: 1 }}>{label}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: MOSH.gris3, fontStyle: "italic" }}>Source : {src}</p>
                       </div>
                     ))}
                   </div>
