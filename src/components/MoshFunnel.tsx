@@ -336,7 +336,7 @@ export default function MoshFunnel() {
 
   /* ── Collected data ── */
   const [nom, setNom] = useState("");
-  const [, setSite] = useState("");
+  const [site, setSite] = useState("");
   const [activite, setActivite] = useState("");
   const [zone, setZone] = useState("");
   const [concurrents, setConcurrents] = useState("");
@@ -344,6 +344,8 @@ export default function MoshFunnel() {
 
   /* ── Results ── */
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [redflags, setRedflags] = useState<string | null>(null); // 2e appel : problèmes concrets sur l'entreprise
+  const [redflagsLoading, setRedflagsLoading] = useState(false);
 
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -418,6 +420,29 @@ export default function MoshFunnel() {
     setOpenFaq(null);
     setNom(""); setSite(""); setActivite(""); setZone(""); setConcurrents(""); setEmail("");
     setDiagnosticResult(null);
+    setRedflags(null);
+    setRedflagsLoading(false);
+  };
+
+  /* ── 2e appel : l'IA analyse l'entreprise et remonte des problèmes concrets ── */
+  const fetchRedflags = async () => {
+    setRedflagsLoading(true);
+    setRedflags(null);
+    try {
+      const res = await fetch("/api/redflags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: nom, metier: activite, ville: zone, site }),
+      });
+      if (!res.ok) throw new Error("redflags api error");
+      const data = await res.json();
+      setRedflags(typeof data.text === "string" ? data.text : "");
+    } catch (err) {
+      console.error(err);
+      setRedflags(""); // vide → section masquée proprement
+    } finally {
+      setRedflagsLoading(false);
+    }
   };
 
   /* ── Bot reply helper ── */
@@ -549,6 +574,12 @@ export default function MoshFunnel() {
 
         // Le rapport apparaît SOUS le chat (on scrolle pour le voir), pas de bascule
         setShowReport(true);
+
+        // 2e appel : l'IA passe l'entreprise au crible (red flags → rapport)
+        fetchRedflags();
+        setTimeout(() => {
+          setMessages((prev) => [...prev, { role: "assistant", content: `J'ai aussi passé **${nom}** au crible. Ce qui coince précisément chez vous, c'est dans le rapport complet 👇` }]);
+        }, 1300);
       }, 1500);
 
     } catch (err) {
@@ -997,6 +1028,10 @@ export default function MoshFunnel() {
               const topComp = others[0] || "un concurrent";
               const posLabel = dr.rank === 1 ? "1re place" : dr.rank >= 2 ? `${dr.rank}e place` : "hors classement";
               const sb = computeScore(dr.rank, dr.competitors.length);
+              const parsedRedflags = (redflags || "")
+                .split("\n")
+                .map((l) => l.replace(/^\s*[-•*]\s*/, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim())
+                .filter((l) => l.length > 3);
               const rows: [string, string, number][] = [
                 [`Présence dans la réponse (${dr.rank > 0 ? "cité" : "absent"})`, `+${sb.presence}`, sb.presence],
                 [`Position (${posLabel})`, `+${sb.position}`, sb.position],
@@ -1085,6 +1120,35 @@ export default function MoshFunnel() {
                     La bonne nouvelle : ces signaux se construisent. L&apos;audit complet identifie lesquels vous manquent, et dans quel ordre les corriger.
                   </p>
                 </div>
+
+                {/* Red flags — 2e appel : ce que l'IA a repéré SUR l'entreprise */}
+                {(redflagsLoading || parsedRedflags.length > 0) && (
+                  <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
+                    <h3 style={{ margin: "0 0 6px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, lineHeight: 1.3, color: "#fff" }}>
+                      Ce qu&apos;on a repéré sur {nom}
+                    </h3>
+                    <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris3 }}>
+                      Analyse ciblée de votre présence en ligne réelle.
+                    </p>
+                    {redflagsLoading ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, color: MOSH.gris3, fontSize: 14 }}>
+                        <ThinkingDots />
+                        <span>On passe {nom} au crible…</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        {parsedRedflags.map((rf, i) => (
+                          <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                            <span style={{ color: "#ff8c8c", fontWeight: 700, flexShrink: 0, lineHeight: 1.5 }}>⚠</span>
+                            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.55, color: "rgba(255,255,255,0.88)" }}>
+                              {renderInline(rf, `rf${i}`)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* CTA */}
                 <div style={{ textAlign: "center", marginTop: 32 }}>
