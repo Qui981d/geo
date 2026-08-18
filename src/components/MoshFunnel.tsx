@@ -500,8 +500,7 @@ export default function MoshFunnel() {
       const score = rank === 1 ? 83 : rank === 2 ? 67 : rank === 3 ? 55 : rank >= 4 ? 46 : 32;
       const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
       const top = frenchList(names.filter((n) => n.toLowerCase() !== nom.toLowerCase()).slice(0, 3));
-      const competitors = names.filter((n) => n.toLowerCase() !== nom.toLowerCase());
-      setDiagnosticResult({ score, companyFound: found, rank, competitors, rawText: fullContent });
+      setDiagnosticResult({ score, companyFound: found, rank, competitors: names, rawText: fullContent });
 
       // Verdict message — dépend du RANG et explique POURQUOI
       const SIGNALS = "vos signaux : densité d'infos publiques, avis structurés, citations dans des sources d'autorité, cohérence de vos coordonnées (nom/adresse/téléphone)";
@@ -814,6 +813,37 @@ export default function MoshFunnel() {
                     <BotText content={streamingContent} />
                   </motion.div>
                 )}
+                {showReport && (
+                  <motion.button
+                    key="see-report"
+                    type="button"
+                    onClick={() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      alignSelf: "flex-start",
+                      marginTop: u(12),
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: u(9),
+                      background: MOSH.blanc,
+                      color: MOSH.noir,
+                      border: "none",
+                      borderRadius: u(30),
+                      padding: `${u(16)} ${u(30)}`,
+                      fontFamily: FONT_DEGULAR,
+                      fontSize: u(CHAT_GEO.msgFont),
+                      fontWeight: 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Voir le rapport complet
+                    <svg viewBox="0 0 24 24" aria-hidden style={{ width: u(19), height: u(19), fill: "none", stroke: MOSH.noir, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                      <path d="M12 5v14M6 13l6 6 6-6" />
+                    </svg>
+                  </motion.button>
+                )}
               </AnimatePresence>
             </div>
 
@@ -925,128 +955,113 @@ export default function MoshFunnel() {
               </AnimatePresence>
             </div>
 
-            {/* Repère de scroll : invite à descendre vers le rapport */}
-            {showReport && (
-              <div style={{ position: "absolute", bottom: u(64), left: "50%", transform: "translateX(-50%)", zIndex: 4 }}>
-                <motion.button
-                  type="button"
-                  onClick={() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.85, y: [0, 5, 0] }}
-                  transition={{ y: { repeat: Infinity, duration: 1.6, ease: "easeInOut" }, opacity: { duration: 0.4 } }}
-                  aria-label="Voir votre rapport"
-                  style={{ display: "inline-flex", alignItems: "center", gap: u(6), background: "transparent", border: "none", padding: 0, color: MOSH.blanc, fontFamily: FONT_DEGULAR, fontSize: u(13.5), fontWeight: 400, cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  votre rapport
-                  <svg viewBox="0 0 24 24" aria-hidden style={{ width: u(16), height: u(16), fill: "none", stroke: MOSH.blanc, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </motion.button>
-              </div>
-            )}
-
             <MoshFooter dark />
             </div>
 
             {/* Écran 2 — le RAPPORT, en dessous du chat : on scrolle pour le voir,
                 on reste libre de relire le chat autant qu'on veut (pas de bascule). */}
-            {showReport && diagnosticResult && (
-            <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 40px", background: MOSH.fond }}>
-            <div style={{ maxWidth: 600, width: "100%", textAlign: "center" }}>
-              <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score express</p>
-              <div style={{ fontSize: "clamp(5rem, 15vw, 8rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                {diagnosticResult.score}<span style={{ fontSize: "0.4em", color: MOSH.gris3 }}>/100</span>
-              </div>
+            {showReport && diagnosticResult && (() => {
+              const dr = diagnosticResult;
+              const others = dr.competitors.filter((n) => n.toLowerCase() !== nom.toLowerCase());
+              const them = frenchList(others.slice(0, 3));
+              const topComp = others[0] || "un concurrent";
+              const signalLevel = dr.rank === 1 ? "plutôt bonne" : dr.rank >= 2 ? "moyenne" : "faible";
+              const posLabel = dr.rank === 1 ? "1re" : dr.rank >= 2 ? `${dr.rank}e` : "Hors classement";
+              const rows: [string, string, boolean][] = [
+                ["Présence dans la réponse de l'IA", dr.rank > 0 ? "Cité" : "Absent", dr.rank > 0],
+                ["Position dans le classement", posLabel, dr.rank === 1],
+                ["Force de vos signaux (avis, citations, densité)", `Estimée ${signalLevel}`, dr.rank === 1],
+                ["Cohérence de vos infos (NAP)", "À confirmer", false],
+              ];
+              return (
+              <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
+              <div style={{ maxWidth: 620, width: "100%" }}>
+                {/* Score + décomposition (le score est expliqué, pas balancé) */}
+                <p style={{ textAlign: "center", fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score de visibilité IA</p>
+                <div style={{ textAlign: "center", fontSize: "clamp(4.5rem, 14vw, 7.5rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                  {dr.score}<span style={{ fontSize: "0.4em", color: MOSH.gris3 }}>/100</span>
+                </div>
 
-              {/* La VRAIE réponse de l'IA : preuve tangible (vrais concurrents) */}
-              {diagnosticResult.rawText && (
-                <div style={{ marginTop: 32, textAlign: "left", padding: "24px 28px", borderRadius: 8, background: MOSH.noir }}>
-                  <p style={{ margin: 0, marginBottom: 16, fontSize: 13, color: MOSH.gris3 }}>
-                    On a demandé à l&apos;IA&nbsp;: <span style={{ color: MOSH.blanc }}>«&nbsp;Recommande-moi le meilleur {activite || "prestataire"} à {zone}&nbsp;»</span>
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {diagnosticResult.rawText
-                      .split(/\n{2,}/)
-                      .map((para) => para.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/^#{1,6}\s*/gm, ""))
-                      .filter((para) => para.trim())
-                      .map((para, i) => (
-                        <p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: MOSH.blanc, whiteSpace: "pre-line" }}>
-                          {renderInline(para, `raw${i}`)}
-                        </p>
-                      ))}
+                <div style={{ marginTop: 28, padding: "20px 24px", borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>D&apos;où vient ce score</p>
+                  {rows.map(([label, val, good], i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "10px 0", borderTop: i ? "1px solid rgba(26,26,26,0.08)" : "none", fontSize: 14, color: MOSH.gris1 }}>
+                      <span>{label}</span>
+                      <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: good ? MOSH.noir : MOSH.gris2 }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Le classement (preuve condensée, pas la réponse verbeuse répétée) */}
+                {dr.competitors.length > 0 && (
+                  <div style={{ marginTop: 20, padding: "20px 24px", borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
+                    <p style={{ margin: "0 0 14px", fontSize: 13, color: MOSH.gris3 }}>
+                      Ce que l&apos;IA répond quand un prospect demande «&nbsp;le meilleur {activite || "prestataire"} à {zone}&nbsp;» :
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {dr.competitors.map((name, i) => {
+                        const you = i + 1 === dr.rank;
+                        return (
+                          <div key={i} style={{ display: "flex", gap: 10, fontSize: 15, color: you ? "#fff" : "rgba(255,255,255,0.72)", fontWeight: you ? 700 : 400 }}>
+                            <span style={{ color: MOSH.gris3 }}>{i + 1}.</span>
+                            <span>{name}{you ? "  ← vous" : ""}</span>
+                          </div>
+                        );
+                      })}
+                      {dr.rank === 0 && (
+                        <div style={{ display: "flex", gap: 10, fontSize: 15, color: "#fff", fontWeight: 700, marginTop: 4, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                          <span>✗</span><span>{nom} — non cité</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p style={{ margin: 0, marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.12)", fontSize: 15, fontWeight: 700, color: MOSH.blanc }}>
-                    {diagnosticResult.rank === 1
-                      ? `${nom} sort en 1re position — mais cette place n'est pas garantie.`
-                      : diagnosticResult.rank >= 2
-                      ? `${nom} est cité en ${diagnosticResult.rank}e position. Regardez qui l'IA met devant.`
-                      : `${nom} n'apparaît nulle part. L'IA recommande ces entreprises à votre place.`}
+                )}
+
+                {/* Pourquoi — l'analyse (la valeur qui distingue de "faire soi-même sur ChatGPT") */}
+                <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                  <h2 style={{ margin: "0 0 14px", fontSize: "clamp(1.15rem, 3vw, 1.5rem)", fontWeight: 700, lineHeight: 1.3, color: MOSH.noir }}>
+                    {dr.rank === 1
+                      ? `Pourquoi vous passez devant ${them || "vos concurrents"}`
+                      : dr.rank >= 2
+                      ? `Pourquoi ${them || "eux"} passent devant vous`
+                      : `Pourquoi ${them || "eux"} sont cités — et pas vous`}
+                  </h2>
+                  <p style={{ margin: "0 0 12px", fontSize: 15, lineHeight: 1.6, color: MOSH.gris1 }}>
+                    L&apos;IA ne choisit pas au hasard. Elle recommande les entreprises sur lesquelles elle trouve le plus de <strong style={{ fontWeight: 700 }}>signaux fiables et cohérents</strong> :
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 0 16px", fontSize: 14, color: MOSH.gris1 }}>
+                    <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Avis structurés</strong> — nombre et régularité (Google, Pages Jaunes, annuaires).</p>
+                    <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Citations</strong> — mentions dans des sources qu&apos;elle juge fiables.</p>
+                    <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Densité d&apos;infos</strong> — adresse, horaires, services, à jour et détaillés.</p>
+                    <p style={{ margin: 0 }}>• <strong style={{ fontWeight: 700 }}>Cohérence (NAP)</strong> — mêmes nom / adresse / téléphone partout.</p>
+                  </div>
+                  <p style={{ margin: "0 0 14px", fontSize: 15, lineHeight: 1.6, color: MOSH.gris1 }}>
+                    {dr.rank === 1
+                      ? `Aujourd'hui, vos signaux sont meilleurs que ceux de ${them || "vos concurrents"} sur cette recherche — c'est pour ça que l'IA vous met en premier. Mais ils s'accumulent en continu : ${topComp} n'a qu'à renforcer les siens pour repasser devant.`
+                      : dr.rank >= 2
+                      ? `${them || "Eux"} cochent ces cases mieux que vous. Vous êtes cité, mais vos signaux sont un cran en dessous — d'où la ${dr.rank}e place, pas la 1re.`
+                      : `${them || "Eux"} cochent ces cases. Chez ${nom}, l'IA n'a pas trouvé assez de signaux fiables pour vous recommander — c'est précisément pour ça que vous n'apparaissez pas.`}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, fontWeight: 700, color: MOSH.noir }}>
+                    La bonne nouvelle : ces signaux se construisent. L&apos;audit complet identifie lesquels vous manquent, et dans quel ordre les corriger.
                   </p>
                 </div>
-              )}
 
-              {/* CTA principal — juste après le verdict (pic de motivation) */}
-              <motion.button
-                onClick={() => setFunnelState("email")}
-                whileTap={{ scale: 0.97 }}
-                style={{ marginTop: 28, background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
-              >
-                {ctaLabel(diagnosticResult.rank)}
-              </motion.button>
-
-              <p style={{ fontSize: 13, color: MOSH.gris2, marginTop: 12, marginBottom: 8 }}>
-                Gratuit · rapport détaillé sous 24h · sans engagement
-              </p>
-
-              <div style={{ marginTop: 32, padding: 32, borderRadius: 4, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)` }}>
-                <h2 style={{ fontSize: "clamp(1.2rem, 3vw, 1.6rem)", fontWeight: 700, marginBottom: 20, lineHeight: 1.3, color: MOSH.noir }}>
-                  {diagnosticResult.rank === 1
-                    ? "Vous êtes n°1 aujourd'hui. L'enjeu : garder la place."
-                    : diagnosticResult.rank >= 2
-                    ? "Vous êtes cité, mais pas en tête."
-                    : "Aujourd'hui, vos concurrents ont plus de chances d'être cités que vous."}
-                </h2>
-                <p style={{ textAlign: "left", margin: "0 0 16px", fontSize: 13, color: MOSH.gris2 }}>
-                  L&apos;IA classe les entreprises selon 4 signaux : densité d&apos;infos publiques, avis structurés, citations dans des sources d&apos;autorité, cohérence de vos coordonnées (NAP).
-                </p>
-                <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, color: MOSH.gris1, fontSize: 15 }}>
-                  {diagnosticResult.rank === 1 ? (
-                    <>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>✓</span> L&apos;IA vous place <strong style={{ fontWeight: 700 }}>en premier</strong> sur cette recherche.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Ce classement se recalcule à chaque requête — rien n&apos;est acquis.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Un concurrent qui renforce ses avis, citations ou infos peut vous doubler.</p>
-                    </>
-                  ) : diagnosticResult.rank >= 2 ? (
-                    <>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>✓</span> L&apos;IA vous connaît et vous cite (position {diagnosticResult.rank}).</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> D&apos;autres passent devant : leurs signaux (avis, citations, infos) sont plus forts.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous perdez les prospects qui s&apos;arrêtent au premier nom cité.</p>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> L&apos;IA recommande d&apos;autres entreprises à votre place.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vos signaux (avis, citations, densité d&apos;infos, cohérence NAP) sont trop faibles.</p>
-                      <p style={{ margin: 0, display: "flex", gap: 10 }}><span>×</span> Vous êtes invisible sur cette recherche générative.</p>
-                    </>
-                  )}
+                {/* CTA */}
+                <div style={{ textAlign: "center", marginTop: 32 }}>
+                  <motion.button
+                    onClick={() => setFunnelState("email")}
+                    whileTap={{ scale: 0.97 }}
+                    style={{ background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
+                  >
+                    {ctaLabel(dr.rank)}
+                  </motion.button>
+                  <p style={{ fontSize: 13, color: MOSH.gris2, marginTop: 12 }}>Gratuit · rapport détaillé sous 24h · sans engagement</p>
                 </div>
               </div>
-
-              <p style={{ fontSize: 16, fontWeight: 400, marginTop: 28, marginBottom: 24, color: MOSH.gris1 }}>
-                {diagnosticResult.rank === 1
-                  ? "On peut vous montrer quels signaux tiennent votre 1re place — et lesquels un concurrent pourrait exploiter pour vous doubler."
-                  : "On peut vous montrer où vous perdez des places, qui passe devant, et ce qu'il faut corriger en premier."}
-              </p>
-              <motion.button
-                onClick={() => setFunnelState("email")}
-                whileTap={{ scale: 0.97 }}
-                style={{ background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
-              >
-                {ctaLabel(diagnosticResult.rank)}
-              </motion.button>
-            </div>
-            </div>
-            )}
+              </div>
+              );
+            })()}
           </motion.div>
         )}
 
