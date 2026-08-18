@@ -181,11 +181,11 @@ function frenchList(items: string[]): string {
   return `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}`;
 }
 
-/** Libellé du CTA audit, adapté au rang. */
+/** Libellé du CTA (diagnostic déjà offert → on invite à en savoir plus). */
 function ctaLabel(rank: number): string {
-  if (rank === 1) return "Verrouiller ma 1re place";
-  if (rank >= 2) return "Repasser devant mes concurrents";
-  return "Débloquer mon audit complet";
+  if (rank === 1) return "Garder ma place — en savoir plus";
+  if (rank >= 2) return "Repasser devant — en savoir plus";
+  return "Reprendre la main — en savoir plus";
 }
 
 /**
@@ -1078,29 +1078,65 @@ export default function MoshFunnel() {
                 [`Position (${posLabel})`, `+${sb.position}`, sb.position],
                 ["Visibilité de base (annuaires, mentions)", `+${sb.base}`, sb.base],
               ];
+              const sev = dr.score >= 70
+                ? { c: "#30A46C", label: "Bonne visibilité" }
+                : dr.score >= 45
+                ? { c: "#E8830C", label: "Visibilité moyenne" }
+                : { c: "#E5484D", label: "Visibilité faible" };
+              const R = 86, C = 2 * Math.PI * R;
+              // 3 chiffres de marché (tendance du secteur — pas les métriques de l'utilisateur)
+              const marketStats: [string, string][] = [
+                ["65%", "des recherches Google affichent déjà une réponse IA en premier"],
+                ["40%", "des questions posées aux IA ont une intention locale ou d'achat"],
+                ["3", "noms max cités par l'IA — hors du top, vous êtes invisible"],
+              ];
               return (
               <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
               <div style={{ maxWidth: 620, width: "100%" }}>
-                {/* Score + décomposition (le score est expliqué, pas balancé) */}
-                <p style={{ textAlign: "center", fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, marginBottom: 8 }}>Votre score de visibilité IA</p>
-                <div style={{ textAlign: "center", fontSize: "clamp(4.5rem, 14vw, 7.5rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                  {dr.score}<span style={{ fontSize: "0.4em", color: MOSH.gris3 }}>/100</span>
+                {/* ── Jauge de score ── */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, margin: "0 0 18px" }}>Votre score de visibilité IA</p>
+                  <div style={{ position: "relative", width: 200, height: 200 }}>
+                    <svg viewBox="0 0 200 200" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
+                      <circle cx="100" cy="100" r={R} fill="none" stroke="rgba(26,26,26,0.10)" strokeWidth="16" />
+                      <circle cx="100" cy="100" r={R} fill="none" stroke={sev.c} strokeWidth="16" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - dr.score / 100)} />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ fontSize: "3.4rem", fontWeight: 700, lineHeight: 1, color: MOSH.noir, fontVariantNumeric: "tabular-nums" }}>{dr.score}</div>
+                      <div style={{ fontSize: 13, color: MOSH.gris3 }}>/ 100</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 999, background: `${sev.c}1A`, color: sev.c, fontSize: 14, fontWeight: 700 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: sev.c }} />
+                    {sev.label}
+                  </div>
                 </div>
 
-                <div style={{ marginTop: 28, padding: "20px 24px", borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
-                  <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>Comment ce score se calcule</p>
-                  {rows.map(([label, val, pts], i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "10px 0", borderTop: i ? "1px solid rgba(26,26,26,0.08)" : "none", fontSize: 14, color: MOSH.gris1 }}>
-                      <span>{label}</span>
-                      <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: pts > 0 ? MOSH.noir : MOSH.gris3 }}>{val}</span>
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "12px 0 2px", borderTop: "2px solid rgba(26,26,26,0.18)", marginTop: 4, fontSize: 15, fontWeight: 700, color: MOSH.noir }}>
-                    <span>Score de visibilité express</span>
-                    <span style={{ whiteSpace: "nowrap" }}>{dr.score}/100</span>
+                {/* ── Décomposition du score (barre segmentée + détail) ── */}
+                <div style={{ marginTop: 28, padding: "22px 24px", borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                  <p style={{ margin: "0 0 14px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>Comment ce score se construit</p>
+                  <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "rgba(26,26,26,0.08)" }}>
+                    {sb.presence > 0 && <div style={{ width: `${sb.presence}%`, background: MOSH.noir }} />}
+                    {sb.position > 0 && <div style={{ width: `${sb.position}%`, background: MOSH.gris2 }} />}
+                    {sb.base > 0 && <div style={{ width: `${sb.base}%`, background: MOSH.gris3 }} />}
                   </div>
-                  <p style={{ margin: "10px 0 0", fontSize: 12, color: MOSH.gris2, lineHeight: 1.5 }}>
-                    Ce score express mesure votre <strong style={{ fontWeight: 700 }}>présence et votre position</strong>. La <strong style={{ fontWeight: 700 }}>force fine de vos signaux</strong> (avis, citations, cohérence NAP) est notée dans l&apos;audit complet.
+                  <div style={{ marginTop: 14 }}>
+                    {rows.map(([label, val, pts], i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "9px 0", borderTop: i ? "1px solid rgba(26,26,26,0.08)" : "none", fontSize: 14, color: MOSH.gris1 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+                          <span style={{ width: 9, height: 9, borderRadius: 2, flexShrink: 0, background: i === 0 ? MOSH.noir : i === 1 ? MOSH.gris2 : MOSH.gris3 }} />
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: pts > 0 ? MOSH.noir : MOSH.gris3 }}>{val}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", padding: "12px 0 2px", borderTop: "2px solid rgba(26,26,26,0.18)", marginTop: 4, fontSize: 15, fontWeight: 700, color: MOSH.noir }}>
+                      <span>Score total</span>
+                      <span style={{ whiteSpace: "nowrap" }}>{dr.score}/100</span>
+                    </div>
+                  </div>
+                  <p style={{ margin: "12px 0 0", fontSize: 12, color: MOSH.gris2, lineHeight: 1.5 }}>
+                    Ce score mesure votre <strong style={{ fontWeight: 700 }}>présence et votre position</strong> dans les réponses IA. La force fine de vos signaux (avis, citations, cohérence) est détaillée plus bas.
                   </p>
                 </div>
 
@@ -1191,16 +1227,36 @@ export default function MoshFunnel() {
                   </div>
                 )}
 
-                {/* CTA */}
-                <div style={{ textAlign: "center", marginTop: 32 }}>
+                {/* ── Le marché : FOMO (tendance du secteur, pas les métriques de l'utilisateur) ── */}
+                <div style={{ marginTop: 20, padding: 28, borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                  <h3 style={{ margin: "0 0 4px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, color: MOSH.noir }}>Pourquoi ça devient urgent</h3>
+                  <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris2 }}>La recherche bascule vers l&apos;IA — tendance du secteur.</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+                    {marketStats.map(([n, label], i) => (
+                      <div key={i} style={{ padding: "16px 14px", borderRadius: 10, background: MOSH.fond, border: `1px solid rgba(26,26,26,0.08)` }}>
+                        <div style={{ fontSize: "clamp(1.6rem, 5vw, 2.1rem)", fontWeight: 700, color: MOSH.noir, lineHeight: 1 }}>{n}</div>
+                        <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.4, color: MOSH.gris1 }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ margin: "18px 0 0", fontSize: 14.5, lineHeight: 1.6, color: MOSH.gris1 }}>
+                    Chaque mois, plus de vos prospects posent ces questions à une IA plutôt qu&apos;à Google. Et l&apos;IA ne cite qu&apos;une poignée de noms : <strong style={{ fontWeight: 700 }}>ceux qui n&apos;y sont pas deviennent invisibles</strong>, sans même le savoir. Plus vous attendez, plus vos concurrents creusent l&apos;écart de signaux.
+                  </p>
+                </div>
+
+                {/* ── CTA soft : le diagnostic est offert, la suite se discute ── */}
+                <div style={{ textAlign: "center", marginTop: 36 }}>
+                  <p style={{ margin: "0 auto 18px", maxWidth: 460, fontSize: 15, lineHeight: 1.55, color: MOSH.gris1 }}>
+                    Le diagnostic, vous l&apos;avez. La suite — quoi corriger, dans quel ordre, comment reprendre la place — on vous la montre.
+                  </p>
                   <motion.button
                     onClick={() => setFunnelState("email")}
                     whileTap={{ scale: 0.97 }}
-                    style={{ background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 41px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
+                    style={{ background: MOSH.noir, color: MOSH.blanc, border: "none", padding: "20px 44px", borderRadius: 4, fontSize: 17, fontWeight: 400, cursor: "pointer", fontFamily: FONT_DEGULAR }}
                   >
                     {ctaLabel(dr.rank)}
                   </motion.button>
-                  <p style={{ fontSize: 13, color: MOSH.gris2, marginTop: 12 }}>Gratuit · rapport détaillé sous 24h · sans engagement</p>
+                  <p style={{ fontSize: 13, color: MOSH.gris2, marginTop: 12 }}>Sans engagement · réponse rapide</p>
                 </div>
               </div>
               </div>
@@ -1221,18 +1277,18 @@ export default function MoshFunnel() {
             style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: MOSH.fond }}
           >
             <div style={{ maxWidth: 520, width: "100%" }}>
-              <h2 style={{ fontSize: "clamp(1.6rem, 4vw, 2.2rem)", fontWeight: 700, marginBottom: 12, color: MOSH.noir }}>On peut vous envoyer l&apos;audit complet.</h2>
+              <h2 style={{ fontSize: "clamp(1.6rem, 4vw, 2.2rem)", fontWeight: 700, marginBottom: 12, color: MOSH.noir }}>On vous montre comment reprendre la place.</h2>
               <p style={{ fontSize: 16, color: MOSH.gris1, marginBottom: 32, lineHeight: 1.6 }}>
-                Pas un PDF de 48 pages pour caler une armoire. Juste ce qu&apos;il faut pour comprendre ce qui bloque et quoi corriger.
+                Le diagnostic, vous venez de le voir. Laissez votre email : on revient vers vous avec le plan concret pour {nom || "votre entreprise"}.
               </p>
 
               <div style={{ padding: 20, borderRadius: 4, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, marginBottom: 28 }}>
-                <p style={{ fontWeight: 700, marginBottom: 12, fontSize: 14, color: MOSH.noir }}>Ce qu&apos;il contient :</p>
+                <p style={{ fontWeight: 700, marginBottom: 12, fontSize: 14, color: MOSH.noir }}>Ce qu&apos;on vous prépare :</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: MOSH.gris1 }}>
-                  <span>✓ Les requêtes exactes testées pour {activite}</span>
-                  <span>✓ Les concurrents détectés qui vous volent la place</span>
-                  <span>✓ Les signaux techniques qui vous pénalisent</span>
-                  <span>✓ Les 3 actions prioritaires à corriger</span>
+                  <span>✓ La liste priorisée des signaux à corriger, dans l&apos;ordre</span>
+                  <span>✓ Comment reprendre la place face aux concurrents détectés</span>
+                  <span>✓ Ce qui se corrige vite vs ce qui prend du temps</span>
+                  <span>✓ Un point d&apos;échange pour répondre à vos questions</span>
                 </div>
               </div>
 
