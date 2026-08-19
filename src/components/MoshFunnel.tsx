@@ -6,7 +6,7 @@ import { MOSH, FONT_DEGULAR, u } from "@/components/ui/tokens";
 import type { AuditCheck, SiteAudit } from "@/lib/siteAudit";
 
 /** Ce que renvoie /api/redflags : le crawl réel du site + sa reformulation. */
-type AuditPayload = Pick<SiteAudit, "url" | "kind" | "httpStatus" | "jsRendered" | "pagesFetched" | "checks" | "tech">;
+type AuditPayload = Pick<SiteAudit, "url" | "kind" | "httpStatus" | "jsRendered" | "pagesFetched" | "profile" | "checks" | "tech">;
 
 /* ═══════════════════════════════════════════════
    MISE À L'ÉCHELLE
@@ -196,6 +196,16 @@ const STOP_WORDS = new Set([
   "bien", "aussi", "comme", "entre", "celui", "ceux", "autre", "autres", "beaucoup",
   "and", "the", "les", "des", "sur", "par", "aux", "une", "que", "qui", "ils", "eux", "mon", "nos",
 ]);
+
+/** L'utilisateur valide-t-il la proposition ? */
+function isAffirmative(s: string): boolean {
+  return /^(oui|ouais|ouep|yep|yes|ok|okay|d'?accord|exact(ement)?|c'?est (bien )?(ca|ça)|tout à fait|parfait|nickel|impec|carr[ée]|go|allez|vas-?y|correct)(?![a-z0-9])/i.test((s || '').trim());
+}
+
+/** Un simple "non", sans rien d'autre : il faut alors lui poser la question. */
+function isRefusalOnly(s: string): boolean {
+  return /^(non|nope|nan|pas (du tout|vraiment)|faux|incorrect)\.?$/i.test((s || "").trim());
+}
 
 /** Mots porteurs de sens d'une saisie libre (hors mots vides). */
 function significantWords(s: string, min = 4): string[] {
@@ -411,7 +421,7 @@ export default function MoshFunnel() {
   const [choice, setChoice] = useState<"none" | "oui" | "non">("none");
 
   /* ── Chat state machine ── */
-  const [chatStep, setChatStep] = useState<"greeting" | "ask_nom" | "ask_site" | "ask_activite" | "ask_zone" | "ask_concurrents" | "scanning" | "verdict">("greeting");
+  const [chatStep, setChatStep] = useState<"greeting" | "ask_nom" | "ask_site" | "ask_activite" | "ask_zone" | "confirm_query" | "ask_concurrents" | "scanning" | "verdict">("greeting");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [inputDisabled, setInputDisabled] = useState(true);
@@ -487,6 +497,7 @@ export default function MoshFunnel() {
       case "ask_site": return "Ex: https://www.mon-site.ch";
       case "ask_activite": return "Ex: Dépannage plomberie d'urgence";
       case "ask_zone": return "Ex: Lausanne et ses environs";
+      case "confirm_query": return "Oui — ou corrigez-moi";
       case "ask_concurrents": return "Ex: SA Plomberie 2000";
       default: return "Analyse en cours...";
     }
@@ -572,6 +583,14 @@ export default function MoshFunnel() {
     }, delay);
   };
 
+  /* ── Enchaîne sans temporisation : l'attente a déjà eu lieu (crawl, LLM) ── */
+  const askNext = (msg: string, nextStep: typeof chatStep) => {
+    setMessages((prev) => [...prev, { role: "assistant", content: msg }]);
+    setChatStep(nextStep);
+    setInputDisabled(false);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
   /* ── Reformule l'activité brute en catégorie qu'un prospect chercherait ── */
   const reformulateActivity = async (raw: string, ville: string): Promise<string> => {
     try {
@@ -603,9 +622,67 @@ export default function MoshFunnel() {
         setNom(text);
         botReply(`${text} c'est bien noté.\n\n**Quelle est l'adresse de votre site internet?**\n\nSi vous n'en avez pas, indiquez l'adresse d'un compte de vos réseaux sociaux.`, "ask_site");
         break;
-      case "ask_site":
+      case "ask_site": {
         setSite(text);
-        botReply("Bien reçu.\n\n**Que faites-vous concrètement?**\n\nPas besoin de la version corporate, seulement la version que vous donnez au voisin.", "ask_activite");
+        setIsThinking(true);
+        // Le crawl démarre ici : il alimente le rapport ET permet de proposer
+        // la requête à tester au lieu de la demander. Rien n'est déduit dans
+        // le dos de l'utilisateur — la proposition lui est soumise juste après.
+        const auditPromise = fetchRedflags(text);
+        auditPromiseRef.current = auditPromise;
+        setMessages((prev) => [...prev, { role: "assistant", content: "Deux secondes, j'ouvre votre site et je lis ce qu'il raconte…" }]);
+        // Le rapport peut attendre la fin du crawl, pas la conversation : au-delà
+        // de 8 s on repose simplement la question au lieu de laisser tourner.
+        Promise.race([
+          auditPromise,
+          new Promise<null>((r) => setTimeout(() => r(null), 8000)),
+        ]).then(async (a) => {
+          const p = a?.profile;
+          const city = (p?.city || "").trim();
+          let guess = "";
+          if (p && (p.title || p.description || p.services.length)) {
+            const brief = [p.title, p.description, p.services.join(", ")].filter(Boolean).join(". ");
+            const q = await reformulateActivity(brief, city);
+            // reformulateActivity renvoie sa saisie telle quelle si l'appel
+            // échoue : on ne garde que ce qui ressemble à une catégorie courte.
+            if (q && q !== brief && q.length <= 45) guess = q;
+          }
+          setIsThinking(false);
+          if (guess && city) {
+            setActivite(guess);
+            setSearchQuery(guess);
+            setZone(city);
+            askNext(
+              `J'ai ouvert votre site. Si je lis bien, vous faites **${guess}**, à **${city}**.\n\nDu coup la question que je vais poser à l'IA — celle qu'un de vos prospects taperait — c'est :\n\n"Recommande-moi les meilleurs ${guess} à ${city}"\n\n**On teste celle-là?** Si je suis à côté, dites-moi ce que vous faites vraiment.`,
+              "confirm_query",
+            );
+          } else {
+            askNext(
+              "Bien reçu.\n\n**Que faites-vous concrètement?**\n\nPas besoin de la version corporate, seulement la version que vous donnez au voisin.",
+              "ask_activite",
+            );
+          }
+        });
+        break;
+      }
+      case "confirm_query":
+        if (isAffirmative(text)) {
+          botReply("Parfait.\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.", "ask_concurrents");
+        } else if (isRefusalOnly(text)) {
+          botReply("OK, au temps pour moi.\n\n**Que faites-vous concrètement?**\n\nLa version que vous donnez au voisin, pas la version corporate.", "ask_activite");
+        } else {
+          // L'utilisateur corrige : sa formulation prime sur notre lecture.
+          setActivite(text);
+          setIsThinking(true);
+          reformulateActivity(text, zone).then((q) => {
+            const fixed = (q || text).trim();
+            setSearchQuery(fixed);
+            askNext(
+              `OK, on testera donc "**Recommande-moi les meilleurs ${fixed} à ${zone}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
+              "ask_concurrents",
+            );
+          });
+        }
         break;
       case "ask_activite":
         setActivite(text);
@@ -618,11 +695,9 @@ export default function MoshFunnel() {
       case "ask_concurrents":
         setConcurrents(text);
         setIsThinking(true);
-        // Le crawl du site démarre tout de suite : il tourne pendant que l'IA
-        // répond, et ses constats alimentent le score et les red flags.
-        auditPromiseRef.current = fetchRedflags(site);
-        // Reformule l'activité brute → catégorie qu'un prospect chercherait vraiment
-        reformulateActivity(activite, zone).then((query) => {
+        // Le crawl tourne depuis l'étape du site. La requête est déjà connue si
+        // l'utilisateur l'a confirmée ; sinon on la déduit de ce qu'il a décrit.
+        (searchQuery.trim() ? Promise.resolve(searchQuery.trim()) : reformulateActivity(activite, zone)).then((query) => {
           setSearchQuery(query);
           setIsThinking(false);
           setMessages((prev) => [
@@ -749,7 +824,7 @@ Votre score : **${score}/100**.${callback}`;
           const pages = auditData?.pagesFetched?.length || 0;
           const crawlNote = pages
             ? `J'ai aussi **ouvert votre site** (${pages} page${pages > 1 ? "s" : ""} lue${pages > 1 ? "s" : ""} : ${auditData!.pagesFetched.join(", ")}) et regardé le code servi.`
-            : `J'ai aussi essayé d'ouvrir votre site${auditData?.url ? ` (${auditData.url})` : ""} — je vous dis dans le rapport ce que j'ai pu lire, et ce que je n'ai pas pu vérifier.`;
+            : `J'ai aussi essayé d'ouvrir votre site${auditData?.url || site ? ` (${auditData?.url || site})` : ""} — je vous dis dans le rapport ce que j'ai pu lire, et ce que je n'ai pas pu vérifier.`;
           setMessages((prev) => [...prev, { role: "assistant", content: `${crawlNote}\n\nTout est dans le rapport, avec la preuve de chaque point 👇` }]);
         }, 1300);
       }, 1500);

@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
         httpStatus: audit.httpStatus,
         jsRendered: audit.jsRendered,
         pagesFetched: audit.pagesFetched,
+        profile: audit.profile,
         checks: audit.checks,
         tech: audit.tech,
       },

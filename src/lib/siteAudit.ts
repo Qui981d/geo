@@ -27,6 +27,15 @@ export interface SiteAudit {
   error: string | null;
   jsRendered: boolean;
   pagesFetched: string[];
+  /** Ce que le site dit de l'entreprise — sert à proposer la requête à tester. */
+  profile: {
+    name: string;
+    title: string;
+    description: string;
+    city: string;
+    types: string[];
+    services: string[];
+  };
   checks: AuditCheck[];
   tech: { earned: number; max: number; measured: boolean };
   facts: string[];                // résumé factuel, seule matière autorisée pour le LLM
@@ -311,6 +320,7 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     error: null,
     jsRendered: false,
     pagesFetched,
+    profile: { name: '', title: '', description: '', city: '', types: [], services: [] },
     checks,
     tech: { earned: 0, max: TECH_MAX, measured: false },
     facts,
@@ -704,6 +714,32 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
   /* ── Réseaux sociaux liés (information, pas un reproche) ── */
   const socials = socialLinks(html);
   if (socials.length) facts.push(`Réseaux sociaux liés depuis le site : ${socials.join(', ')}.`);
+
+  /* ── Profil : ce que le site dit de l'entreprise ──
+     Sert à proposer la requête à tester au lieu de la demander. Rien n'est
+     déduit dans le dos de l'utilisateur : la proposition lui est soumise. */
+  const namedNode = findNode(
+    nodes,
+    (n) => typeof n.name === 'string' && typesOf([n]).some((x) => LOCAL_TYPES.test(x)),
+  );
+  const localityNode = findNode(nodes, (n) => typeof n.addressLocality === 'string');
+  const cityFromText = text.match(/\b(?:CH-|FR-)?\d{4,5}\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]+(?:[- ][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/);
+  const services = nodes
+    .filter((n) => {
+      const ts = typesOf([n]);
+      return ts.includes('Service') || ts.includes('Offer');
+    })
+    .map((n) => (typeof n.name === 'string' ? n.name.trim() : ''))
+    .filter(Boolean)
+    .slice(0, 8);
+  audit.profile = {
+    name: (namedNode?.name as string) || meta(html, 'og:site_name') || '',
+    title: t,
+    description: desc,
+    city: (localityNode?.addressLocality as string) || cityFromText?.[1] || '',
+    types: localTypes.length ? localTypes : schemaTypes,
+    services: [...new Set(services)],
+  };
 
   /* ── Score technique, normalisé sur les seuls contrôles concluants ── */
   const earned = checks.reduce((s, c) => s + c.points, 0);
