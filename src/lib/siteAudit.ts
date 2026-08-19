@@ -552,26 +552,43 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
   const ratingCount = ratingObj ? (ratingObj.reviewCount ?? ratingObj.ratingCount) : undefined;
   const hasRating = Boolean(ratingObj && (ratingObj.ratingValue || ratingCount));
   const reviewLinks = reviewPlatformLinks(html);
+  // Une note balisée n'est un bon signal que si quelque chose la justifie sur
+  // la page. Une note écrite en dur sans aucun avis derrière est une note
+  // auto-déclarée : Google la sanctionne et une IA ne peut pas la recouper.
+  // On ne la valide donc JAMAIS d'un ✓ — on ne fait que rapporter ce que le
+  // site affirme.
+  const reviewNodes = nodes.filter((n) => {
+    const t = n['@type'];
+    return t === 'Review' || (Array.isArray(t) && t.includes('Review'));
+  });
+  const backed = reviewNodes.length > 0 || reviewLinks.length > 0;
+  const declared = `${ratingObj?.ratingValue ?? '?'} sur ${ratingCount ?? '?'} avis`;
   checks.push({
     id: 'reviews',
     label: 'Avis balisés sur le site (AggregateRating)',
-    status: hasRating ? 'ok' : audit.jsRendered ? 'unknown' : 'fail',
-    points: hasRating ? 3 : 0,
+    status: hasRating && backed ? 'ok' : audit.jsRendered && !hasRating ? 'unknown' : 'fail',
+    points: hasRating && backed ? 3 : hasRating ? 1 : 0,
     max: audit.jsRendered && !hasRating ? 0 : 3,
     evidence: hasRating
-      ? `AggregateRating trouvé : note ${ratingObj?.ratingValue ?? '?'} sur ${ratingCount ?? '?'} avis.`
+      ? backed
+        ? `Le balisage déclare ${declared}, appuyé par ${reviewNodes.length ? `${reviewNodes.length} avis balisé(s) sur la page` : `un lien vers ${reviewLinks.join(', ')}`}.`
+        : `Le balisage de la page déclare ${declared}, mais la page ne contient aucun avis balisé (0 nœud Review) ni aucun lien vers une plateforme d'avis. Nous ne validons pas ce chiffre : nous rapportons ce que votre site affirme.`
       : audit.jsRendered
         ? 'Page rendue en JS : balisage des avis non vérifiable.'
         : `Aucun AggregateRating dans le HTML. Liens vers des plateformes d'avis trouvés : ${reviewLinks.length ? reviewLinks.join(', ') : 'aucun'}.`,
     flag:
-      hasRating || audit.jsRendered
+      hasRating && backed
         ? undefined
-        : "Vos avis ne sont balisés nulle part sur votre site (AggregateRating absent) : même excellents et nombreux, ils ne sont pas rattachables à votre entité par une IA.",
-    why: 'Un avis non balisé reste lisible par un humain, mais invisible comme signal structuré.',
+        : hasRating
+          ? `Votre site déclare une note de ${declared} dans son balisage, sans qu'aucun avis ne l'appuie sur la page. Une note auto-déclarée non justifiée expose à une pénalité Google pour balisage trompeur, et aucune IA ne peut la recouper : à corriger ou à retirer.`
+          : audit.jsRendered
+            ? undefined
+            : "Vos avis ne sont balisés nulle part sur votre site (AggregateRating absent) : même excellents et nombreux, ils ne sont pas rattachables à votre entité par une IA.",
+    why: 'Un avis non balisé reste lisible par un humain, mais invisible comme signal structuré. Un avis balisé sans preuve est un risque.',
   });
   facts.push(
     hasRating
-      ? `Avis BALISÉS sur le site : note ${ratingObj?.ratingValue ?? '?'} / ${ratingCount ?? '?'} avis (AggregateRating).`
+      ? `Le balisage du site DÉCLARE ${declared} — ${backed ? `appuyé par ${reviewNodes.length} avis balisé(s) / ${reviewLinks.length} lien(s) plateforme.` : "SANS aucun avis balisé ni lien vers une plateforme sur la page : chiffre invérifiable, ne jamais le reprendre à notre compte."}`
       : `Aucun AggregateRating dans le HTML lu. ${reviewLinks.length ? `Liens vers plateformes d'avis : ${reviewLinks.join(', ')}.` : "Aucun lien vers une plateforme d'avis sur les pages lues."}`,
   );
   facts.push(
