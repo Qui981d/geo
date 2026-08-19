@@ -191,6 +191,43 @@ function sameCompany(a: string, b: string): boolean {
   return shared.length >= 2;
 }
 
+const STOP_WORDS = new Set([
+  "avec", "dans", "pour", "chez", "leur", "tout", "tous", "plus", "mais", "sont", "cest", "tres",
+  "bien", "aussi", "comme", "entre", "celui", "ceux", "autre", "autres", "beaucoup",
+  "and", "the", "les", "des", "sur", "par", "aux", "une", "que", "qui", "ils", "eux", "mon", "nos",
+]);
+
+/** Mots porteurs de sens d'une saisie libre (hors mots vides). */
+function significantWords(s: string, min = 4): string[] {
+  return [...new Set(normalizeName(s).split(" ").filter((w) => w.length >= min && !STOP_WORDS.has(w)))];
+}
+
+/** L'utilisateur a-t-il vraiment nommé un concurrent ? ("aucun", "je sais pas" → non) */
+function hasNamedRival(s: string): boolean {
+  const t = (s || "").trim();
+  if (!t) return false;
+  if (/^(aucun|aucune|non|rien|personne|nsp|jsp|aucune id[ée]e|pas vraiment|je ne sais pas|je sais pas|sais pas|-)\.?$/i.test(t)) return false;
+  return significantWords(t).length > 0;
+}
+
+/**
+ * Le concurrent cité apparaît-il quelque part dans la réponse de l'IA ?
+ * `context` = les mots du métier et de la zone : ils traînent partout dans la
+ * réponse, donc "Conciergerie du Lac" ne doit pas être jugé présent au seul
+ * motif que le mot "conciergerie" y figure. Si le nom ne contient plus rien de
+ * distinctif une fois ces mots retirés, on répond `true` : on préfère se taire
+ * plutôt que d'affirmer une absence qu'on ne peut pas établir.
+ */
+function rivalAppearsIn(raw: string, rivals: string, context = ""): boolean {
+  const hay = normalizeName(raw);
+  // Seuil à 3 lettres ici : un nom d'enseigne tient parfois dans un mot court
+  // ("Lac", "Zen"), et le filtre par le métier suffit à écarter le bruit.
+  const common = new Set(significantWords(context, 3));
+  const distinctive = significantWords(rivals, 3).filter((w) => !common.has(w));
+  if (!distinctive.length) return true;
+  return distinctive.some((w) => new RegExp(`\\b${w}\\b`).test(hay));
+}
+
 /**
  * Analyse la réponse de l'IA (liste "1. … 2. … 3. …") : renvoie le rang de
  * l'entreprise (0 = absente) et les noms de la liste dans l'ordre.
@@ -374,7 +411,7 @@ export default function MoshFunnel() {
   const [choice, setChoice] = useState<"none" | "oui" | "non">("none");
 
   /* ── Chat state machine ── */
-  const [chatStep, setChatStep] = useState<"greeting" | "ask_nom" | "ask_site" | "ask_activite" | "ask_zone" | "ask_concurrents" | "ask_objectif" | "scanning" | "verdict">("greeting");
+  const [chatStep, setChatStep] = useState<"greeting" | "ask_nom" | "ask_site" | "ask_activite" | "ask_zone" | "ask_concurrents" | "scanning" | "verdict">("greeting");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [inputDisabled, setInputDisabled] = useState(true);
@@ -451,7 +488,6 @@ export default function MoshFunnel() {
       case "ask_activite": return "Ex: Dépannage plomberie d'urgence";
       case "ask_zone": return "Ex: Lausanne et ses environs";
       case "ask_concurrents": return "Ex: SA Plomberie 2000";
-      case "ask_objectif": return "Ex: Plus d'appels, de devis...";
       default: return "Analyse en cours...";
     }
   };
@@ -581,15 +617,12 @@ export default function MoshFunnel() {
         break;
       case "ask_concurrents":
         setConcurrents(text);
-        botReply("Parfait. Et **vous voulez surtout plus de quoi?** Plus d'appels? De devis? De réservations? De trafic?", "ask_objectif");
-        break;
-      case "ask_objectif":
         setIsThinking(true);
         // Le crawl du site démarre tout de suite : il tourne pendant que l'IA
         // répond, et ses constats alimentent le score et les red flags.
         auditPromiseRef.current = fetchRedflags(site);
         // Reformule l'activité brute → catégorie qu'un prospect chercherait vraiment
-        reformulateActivity(activite || text, zone).then((query) => {
+        reformulateActivity(activite, zone).then((query) => {
           setSearchQuery(query);
           setIsThinking(false);
           setMessages((prev) => [
@@ -597,14 +630,14 @@ export default function MoshFunnel() {
             { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"Recommande-moi les meilleurs ${query} à ${zone}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
           ]);
           setChatStep("scanning");
-          setTimeout(() => triggerApiCall(query), 2000);
+          setTimeout(() => triggerApiCall(query, text), 2000);
         });
         break;
     }
   };
 
   /* ── Real API call ── */
-  const triggerApiCall = async (query?: string) => {
+  const triggerApiCall = async (query?: string, rivals?: string) => {
     const metier = (query || searchQuery || activite).trim();
     setIsThinking(true);
     setStreamingContent("");
@@ -663,10 +696,20 @@ export default function MoshFunnel() {
       const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
       const top = frenchList(names.filter((n) => !sameCompany(n, nom)).slice(0, 3));
       // Concurrents que l'utilisateur a cités et qui ressortent dans la réponse
-      const mentioned = matchMentioned(names, concurrents);
+      const rivalsText = (rivals ?? concurrents).trim();
+      const mentioned = matchMentioned(names, rivalsText);
+      const namedRival = hasNamedRival(rivalsText);
+      // On ne dit "ils n'y sont pas" que s'ils sont absents de TOUTE la réponse,
+      // pas seulement du classement : sinon le constat serait faux.
+      const rivalAbsent = namedRival && !mentioned.length && !rivalAppearsIn(fullContent, rivalsText, `${metier} ${zone}`);
+      const rivalLabel = rivalsText.length > 60 ? `${rivalsText.slice(0, 60)}…` : rivalsText;
       const callback = mentioned.length
         ? `\n\nEt tiens — **${frenchList(mentioned.map((m) => m.name))}**, que vous avez cité${mentioned.length > 1 ? "s" : ""} : ${mentioned.length > 1 ? "ils sortent" : `il sort`} bien dans la réponse (${mentioned.map((m) => `${m.name} en ${m.rank}${m.rank === 1 ? "re" : "e"}`).join(", ")}). Vous ne les aviez pas inventés.`
-        : "";
+        : rivalAbsent
+          ? rank > 0
+            ? `\n\nEt tiens — **${rivalLabel}**, que vous m'avez cité : aucune trace dans la réponse. Sur cette question précise, ils ne vous prennent rien.`
+            : `\n\nMaigre consolation : **${rivalLabel}**, que vous m'avez cité, n'y est pas non plus. Sur cette question, l'IA ne recommande ni vous ni eux — la place est à prendre.`
+          : "";
       setDiagnosticResult({ score, companyFound: found, rank, competitors: names, rawText: fullContent, tech: techScore });
 
       // Verdict message — dépend du RANG et explique POURQUOI
