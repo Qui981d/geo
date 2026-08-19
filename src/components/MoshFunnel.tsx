@@ -3,6 +3,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BtnTest, BtnEnter, BtnFaq, Checkbox, Logo } from "@/components/ui";
 import { MOSH, FONT_DEGULAR, u } from "@/components/ui/tokens";
+import type { AuditCheck, SiteAudit } from "@/lib/siteAudit";
+
+/** Ce que renvoie /api/redflags : le crawl réel du site + sa reformulation. */
+type AuditPayload = Pick<SiteAudit, "url" | "kind" | "httpStatus" | "jsRendered" | "pagesFetched" | "checks" | "tech">;
 
 /* ═══════════════════════════════════════════════
    MISE À L'ÉCHELLE
@@ -189,16 +193,27 @@ function ctaLabel(rank: number): string {
 }
 
 /**
- * Score CALCULÉ et décomposable (fini l'arbitraire) : présence + position +
- * base de visibilité résiduelle. Le total est la somme des 3 composantes.
+ * Score CALCULÉ et décomposable, uniquement à partir de choses MESURÉES :
+ *   • présence + position → lues dans la vraie réponse de l'IA ;
+ *   • technique          → mesuré en ouvrant réellement le site (siteAudit).
+ * Si le site n'a pas pu être analysé, la composante technique n'est pas
+ * inventée : le score est ramené sur les deux axes réellement mesurés.
  */
-function computeScore(rank: number, n: number): { presence: number; position: number; base: number; total: number } {
+function computeScore(
+  rank: number,
+  n: number,
+  tech: number | null,
+): { presence: number; position: number; tech: number | null; total: number } {
   const N = Math.max(n, 3);
-  const presence = rank > 0 ? 35 : 0;
-  const position = rank > 0 ? Math.round(40 * (N - rank + 1) / N) : 0;
-  const base = 15; // visibilité résiduelle (annuaires, mentions) — non mesurée finement en express
-  const total = Math.min(100, presence + position + base);
-  return { presence, position, base, total };
+  let presence = rank > 0 ? 35 : 0;
+  let position = rank > 0 ? Math.round(40 * (N - rank + 1) / N) : 0;
+  if (tech === null) {
+    // Pas de mesure technique → on renormalise les 75 pts mesurés sur 100.
+    presence = Math.round((presence * 100) / 75);
+    position = Math.round((position * 100) / 75);
+    return { presence, position, tech: null, total: Math.min(100, presence + position) };
+  }
+  return { presence, position, tech, total: Math.min(100, presence + position + tech) };
 }
 
 /** Concurrents cités par l'utilisateur qui ressortent dans la réponse de l'IA. */
@@ -309,7 +324,7 @@ function ThinkingDots() {
    TYPES
    ═══════════════════════════════════════════════ */
 interface Message { role: "user" | "assistant"; content: string; }
-interface DiagnosticResult { score: number; companyFound: boolean; rank: number; competitors: string[]; rawText: string; }
+interface DiagnosticResult { score: number; companyFound: boolean; rank: number; competitors: string[]; rawText: string; tech: number | null; }
 
 /* ═══════════════════════════════════════════════
    COMPOSANT PRINCIPAL
@@ -361,6 +376,8 @@ export default function MoshFunnel() {
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
   const [redflags, setRedflags] = useState<string | null>(null); // 2e appel : problèmes concrets sur l'entreprise
   const [redflagsLoading, setRedflagsLoading] = useState(false);
+  const [audit, setAudit] = useState<AuditPayload | null>(null); // crawl réel du site (preuves affichées)
+  const auditPromiseRef = useRef<Promise<AuditPayload | null> | null>(null);
 
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -438,24 +455,34 @@ export default function MoshFunnel() {
     setDiagnosticResult(null);
     setRedflags(null);
     setRedflagsLoading(false);
+    setAudit(null);
+    auditPromiseRef.current = null;
   };
 
-  /* ── 2e appel : l'IA analyse l'entreprise et remonte des problèmes concrets ── */
-  const fetchRedflags = async () => {
+  /* ── 2e appel : on OUVRE vraiment le site et on ne remonte que le constaté ──
+     Lancé en parallèle du scan (le crawl prend quelques secondes) ; le verdict
+     l'attend pour que le score technique soit mesuré, jamais supposé. */
+  const fetchRedflags = async (siteUrl: string): Promise<AuditPayload | null> => {
     setRedflagsLoading(true);
     setRedflags(null);
+    setAudit(null);
     try {
       const res = await fetch("/api/redflags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company: nom, metier: activite, ville: zone, site }),
+        body: JSON.stringify({ site: siteUrl }),
       });
       if (!res.ok) throw new Error("redflags api error");
       const data = await res.json();
       setRedflags(typeof data.text === "string" ? data.text : "");
+      const a: AuditPayload | null = data.audit ?? null;
+      setAudit(a);
+      return a;
     } catch (err) {
       console.error(err);
       setRedflags(""); // vide → section masquée proprement
+      setAudit(null);
+      return null;
     } finally {
       setRedflagsLoading(false);
     }
@@ -522,6 +549,9 @@ export default function MoshFunnel() {
         break;
       case "ask_objectif":
         setIsThinking(true);
+        // Le crawl du site démarre tout de suite : il tourne pendant que l'IA
+        // répond, et ses constats alimentent le score et les red flags.
+        auditPromiseRef.current = fetchRedflags(site);
         // Reformule l'activité brute → catégorie qu'un prospect chercherait vraiment
         reformulateActivity(activite || text, zone).then((query) => {
           setSearchQuery(query);
@@ -581,10 +611,19 @@ export default function MoshFunnel() {
       setIsStreaming(false);
 
       // Rang réel de l'entreprise dans la réponse (0 = absente) + concurrents
+      setIsThinking(true); // le crawl du site finit de tourner
       const { rank, names } = extractRanking(fullContent, nom);
       const found = rank > 0;
-      // Score CALCULÉ (présence + position + base), plus arbitraire
-      const score = computeScore(rank, names.length).total;
+      // On attend le crawl du site (démarré au début du scan) pour que la part
+      // technique du score soit MESURÉE. S'il n'a pas abouti, elle est déclarée
+      // non mesurée plutôt que remplacée par une valeur inventée.
+      const auditData = await Promise.race([
+        auditPromiseRef.current ?? Promise.resolve(null),
+        new Promise<null>((r) => setTimeout(() => r(null), 25000)),
+      ]);
+      const techScore = auditData?.tech?.measured ? auditData.tech.earned : null;
+      setIsThinking(false);
+      const score = computeScore(rank, names.length, techScore).total;
       const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
       const top = frenchList(names.filter((n) => n.toLowerCase() !== nom.toLowerCase()).slice(0, 3));
       // Concurrents que l'utilisateur a cités et qui ressortent dans la réponse
@@ -592,18 +631,32 @@ export default function MoshFunnel() {
       const callback = mentioned.length
         ? `\n\nEt tiens — **${frenchList(mentioned.map((m) => m.name))}**, que vous avez cité${mentioned.length > 1 ? "s" : ""} : ${mentioned.length > 1 ? "ils sortent" : `il sort`} bien dans la réponse (${mentioned.map((m) => `${m.name} en ${m.rank}${m.rank === 1 ? "re" : "e"}`).join(", ")}). Vous ne les aviez pas inventés.`
         : "";
-      setDiagnosticResult({ score, companyFound: found, rank, competitors: names, rawText: fullContent });
+      setDiagnosticResult({ score, companyFound: found, rank, competitors: names, rawText: fullContent, tech: techScore });
 
       // Verdict message — dépend du RANG et explique POURQUOI
-      const SIGNALS = "vos signaux : densité d'infos publiques, avis structurés, citations dans des sources d'autorité, cohérence de vos coordonnées (nom/adresse/téléphone)";
+      const SIGNALS = "les signaux qu'elle trouve : densité d'infos publiques, avis structurés, citations dans des sources d'autorité, cohérence des coordonnées (nom/adresse/téléphone)";
       setTimeout(() => {
         let verdictMsg: string;
         if (rank === 1) {
-          verdictMsg = `**${nom}** sort **en 1re position**. Honnêtement, joli.\n\nMais cette place n'est pas acquise : à chaque requête, l'IA reclasse selon ${SIGNALS}. Un concurrent qui muscle ces signaux peut vous doubler au prochain rafraîchissement.\n\nVotre score : **${score}/100** — vous êtes devant, l'enjeu c'est de **verrouiller** la place.${callback}`;
+          verdictMsg = `**${nom}** sort **en 1re position**. Honnêtement, joli.
+
+Mais cette place n'est pas acquise : à chaque requête, l'IA reclasse selon ${SIGNALS}. Un concurrent qui muscle ces signaux peut vous doubler au prochain rafraîchissement.
+
+Votre score : **${score}/100** — vous êtes devant, l'enjeu c'est de **verrouiller** la place.${callback}`;
         } else if (rank >= 2) {
-          verdictMsg = `**${nom}** est cité, mais en **${rank}e position**${ahead ? `, derrière **${ahead}**` : ""}.\n\nPourquoi ? L'IA classe selon ${SIGNALS}. Vous y êtes, mais vos signaux sont un cran en dessous de ceux qui passent devant.\n\nVotre score : **${score}/100** — la 1re place est atteignable, il manque quelques réglages.${callback}`;
+          verdictMsg = `**${nom}** est cité, mais en **${rank}e position**${ahead ? `, derrière **${ahead}**` : ""}.
+
+L'IA classe selon ${SIGNALS}. Vous y êtes — reste à savoir où ça coince pour la 1re place : ce qu'on a pu mesurer nous-mêmes est dans le rapport, point par point.
+
+Votre score : **${score}/100**.${callback}`;
         } else {
-          verdictMsg = `**${nom}** n'apparaît **nulle part**.\n\nL'IA recommande ${top ? `**${top}**` : "d'autres entreprises"} à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tombent jamais sur vous.\n\nPourquoi ? ${SIGNALS[0].toUpperCase() + SIGNALS.slice(1)} sont trop faibles pour déclencher une recommandation.\n\nVotre score : **${score}/100**.${callback}`;
+          verdictMsg = `**${nom}** n'apparaît **nulle part**.
+
+L'IA recommande ${top ? `**${top}**` : "d'autres entreprises"} à votre place. Vos prospects qui posent cette question à ChatGPT, Perplexity ou Gemini ne tombent jamais sur vous.
+
+Elle arbitre selon ${SIGNALS}. On ne va pas vous raconter lesquels vous manquent sans avoir regardé : le rapport ne liste que ce qu'on a vérifié nous-mêmes sur votre site.
+
+Votre score : **${score}/100**.${callback}`;
         }
 
         setMessages((prev) => [...prev, { role: "assistant", content: verdictMsg }]);
@@ -612,10 +665,13 @@ export default function MoshFunnel() {
         // Le rapport apparaît SOUS le chat (on scrolle pour le voir), pas de bascule
         setShowReport(true);
 
-        // 2e appel : l'IA passe l'entreprise au crible (red flags → rapport)
-        fetchRedflags();
+        // Le crawl a déjà tourné pendant le scan : on annonce ce qu'on a lu.
         setTimeout(() => {
-          setMessages((prev) => [...prev, { role: "assistant", content: `J'ai aussi passé **${nom}** au crible. Ce qui coince précisément chez vous, c'est dans le rapport complet 👇` }]);
+          const pages = auditData?.pagesFetched?.length || 0;
+          const crawlNote = pages
+            ? `J'ai aussi **ouvert votre site** (${pages} page${pages > 1 ? "s" : ""} lue${pages > 1 ? "s" : ""} : ${auditData!.pagesFetched.join(", ")}) et regardé le code servi.`
+            : `J'ai aussi essayé d'ouvrir votre site${auditData?.url ? ` (${auditData.url})` : ""} — je vous dis dans le rapport ce que j'ai pu lire, et ce que je n'ai pas pu vérifier.`;
+          setMessages((prev) => [...prev, { role: "assistant", content: `${crawlNote}\n\nTout est dans le rapport, avec la preuve de chaque point 👇` }]);
         }, 1300);
       }, 1500);
 
@@ -623,7 +679,18 @@ export default function MoshFunnel() {
       console.error(err);
       setIsThinking(false);
       setIsStreaming(false);
-      setDiagnosticResult({ score: computeScore(0, 3).total, companyFound: false, rank: 0, competitors: [], rawText: "" });
+      // La réponse de l'IA a échoué, mais le crawl du site a pu aboutir :
+      // on garde ce qui a réellement été mesuré plutôt que de tout jeter.
+      const auditData = await (auditPromiseRef.current ?? Promise.resolve(null));
+      const techScore = auditData?.tech?.measured ? auditData.tech.earned : null;
+      setDiagnosticResult({
+        score: computeScore(0, 3, techScore).total,
+        companyFound: false,
+        rank: 0,
+        competitors: [],
+        rawText: "",
+        tech: techScore,
+      });
       setShowReport(true);
     }
   };
@@ -1068,7 +1135,11 @@ export default function MoshFunnel() {
               const them = frenchList(others.slice(0, 3));
               const topComp = others[0] || "un concurrent";
               const posLabel = dr.rank === 1 ? "1re place" : dr.rank >= 2 ? `${dr.rank}e place` : "hors classement";
-              const sb = computeScore(dr.rank, dr.competitors.length);
+              const sb = computeScore(dr.rank, dr.competitors.length, dr.tech);
+              // Ce qu'on a réellement pu vérifier en ouvrant le site — et ce qu'on n'a PAS pu vérifier.
+              const checks: AuditCheck[] = audit?.checks || [];
+              const okChecks = checks.filter((c) => c.status === "ok");
+              const unknownChecks = checks.filter((c) => c.status === "unknown");
               const parsedRedflags = (redflags || "")
                 .split("\n")
                 .map((l) => l.replace(/^\s*[-•*]\s*/, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim())
@@ -1076,7 +1147,9 @@ export default function MoshFunnel() {
               const rows: [string, string, number][] = [
                 [`Présence dans la réponse (${dr.rank > 0 ? "cité" : "absent"})`, `+${sb.presence}`, sb.presence],
                 [`Position (${posLabel})`, `+${sb.position}`, sb.position],
-                ["Visibilité de base (annuaires, mentions)", `+${sb.base}`, sb.base],
+                ...(sb.tech !== null
+                  ? ([["Signaux techniques de votre site (mesurés sur place)", `+${sb.tech}`, sb.tech]] as [string, string, number][])
+                  : []),
               ];
               const sev = dr.score >= 70
                 ? { c: "#30A46C", label: "Bonne visibilité" }
@@ -1118,7 +1191,7 @@ export default function MoshFunnel() {
                   <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "rgba(26,26,26,0.08)" }}>
                     {sb.presence > 0 && <div style={{ width: `${sb.presence}%`, background: MOSH.noir }} />}
                     {sb.position > 0 && <div style={{ width: `${sb.position}%`, background: MOSH.gris2 }} />}
-                    {sb.base > 0 && <div style={{ width: `${sb.base}%`, background: MOSH.gris3 }} />}
+                    {sb.tech !== null && sb.tech > 0 && <div style={{ width: `${sb.tech}%`, background: MOSH.gris3 }} />}
                   </div>
                   <div style={{ marginTop: 14 }}>
                     {rows.map(([label, val, pts], i) => (
@@ -1136,7 +1209,9 @@ export default function MoshFunnel() {
                     </div>
                   </div>
                   <p style={{ margin: "12px 0 0", fontSize: 12, color: MOSH.gris2, lineHeight: 1.5 }}>
-                    Ce score mesure votre <strong style={{ fontWeight: 700 }}>présence et votre position</strong> dans les réponses IA. La force fine de vos signaux (avis, citations, cohérence) est détaillée plus bas.
+                    {sb.tech !== null
+                      ? <>Ce score n&apos;additionne que du <strong style={{ fontWeight: 700 }}>mesuré</strong> : votre place dans la vraie réponse de l&apos;IA, et les signaux techniques relevés en ouvrant votre site. Le détail de chaque vérification est plus bas.</>
+                      : <>Ce score ne porte que sur votre <strong style={{ fontWeight: 700 }}>place dans la réponse de l&apos;IA</strong>. Nous n&apos;avons pas pu analyser votre site : sa part technique n&apos;est pas comptée, plutôt qu&apos;estimée au doigt mouillé.</>}
                   </p>
                 </div>
 
@@ -1190,40 +1265,92 @@ export default function MoshFunnel() {
                     {dr.rank === 1
                       ? `Aujourd'hui, vos signaux sont meilleurs que ceux de ${them || "vos concurrents"} sur cette recherche — c'est pour ça que l'IA vous met en premier. Mais ils s'accumulent en continu : ${topComp} n'a qu'à renforcer les siens pour repasser devant.`
                       : dr.rank >= 2
-                      ? `${them || "Eux"} cochent ces cases mieux que vous. Vous êtes cité, mais vos signaux sont un cran en dessous — d'où la ${dr.rank}e place, pas la 1re.`
-                      : `${them || "Eux"} cochent ces cases. Chez ${nom}, l'IA n'a pas trouvé assez de signaux fiables pour vous recommander — c'est précisément pour ça que vous n'apparaissez pas.`}
+                      ? `Sur cette recherche, l'IA a mis ${them || "eux"} devant vous. Ce qu'on peut affirmer sans supposer, c'est ce qu'on a lu nous-mêmes sur votre site — c'est juste en dessous.`
+                      : `Sur cette recherche, l'IA a cité ${them || "d'autres entreprises"} et pas ${nom}. Le reste (fiche Google, annuaires, avis) demande un audit complet : ci-dessous, uniquement ce qu'on a vérifié nous-mêmes.`}
                   </p>
                   <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, fontWeight: 700, color: MOSH.noir }}>
                     La bonne nouvelle : ces signaux se construisent. L&apos;audit complet identifie lesquels vous manquent, et dans quel ordre les corriger.
                   </p>
                 </div>
 
-                {/* Red flags — 2e appel : ce que l'IA a repéré SUR l'entreprise */}
+                {/* Red flags — issus du CRAWL réel du site : chaque point a sa preuve */}
                 {(redflagsLoading || parsedRedflags.length > 0) && (
                   <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
                     <h3 style={{ margin: "0 0 6px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, lineHeight: 1.3, color: "#fff" }}>
                       Ce qu&apos;on a repéré sur {nom}
                     </h3>
                     <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris3 }}>
-                      Analyse ciblée de votre présence en ligne réelle.
+                      {audit?.pagesFetched?.length
+                        ? `Constaté en ouvrant votre site : ${audit.pagesFetched.join(", ")}. Chaque point ci-dessous est vérifiable dans le code de votre page.`
+                        : "Uniquement ce que nous avons pu constater nous-mêmes."}
                     </p>
                     {redflagsLoading ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, color: MOSH.gris3, fontSize: 14 }}>
                         <ThinkingDots />
-                        <span>On passe {nom} au crible…</span>
+                        <span>On ouvre votre site et on lit le code…</span>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {parsedRedflags.map((rf, i) => (
-                          <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                            <span style={{ color: "#ff8c8c", fontWeight: 700, flexShrink: 0, lineHeight: 1.5 }}>⚠</span>
-                            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.55, color: "rgba(255,255,255,0.88)" }}>
-                              {renderInline(rf, `rf${i}`)}
-                            </p>
-                          </div>
-                        ))}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        {parsedRedflags.map((rf, i) => {
+                          // La preuve technique du point i, telle que relevée par le crawl.
+                          const proof = checks.filter((c) => c.status === "fail" && c.flag).sort((a, b) => b.max - a.max)[i];
+                          return (
+                            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                              <span style={{ color: "#ff8c8c", fontWeight: 700, flexShrink: 0, lineHeight: 1.5 }}>⚠</span>
+                              <div>
+                                <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.55, color: "rgba(255,255,255,0.88)" }}>
+                                  {renderInline(rf, `rf${i}`)}
+                                </p>
+                                {proof && (
+                                  <p style={{ margin: "5px 0 0", fontSize: 12, lineHeight: 1.5, color: "rgba(255,255,255,0.42)" }}>
+                                    Relevé : {proof.evidence}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Transparence : ce qui est OK chez vous, et ce qu'on ne peut PAS vérifier */}
+                {!redflagsLoading && checks.length > 0 && (
+                  <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                    <h3 style={{ margin: "0 0 6px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, lineHeight: 1.3, color: MOSH.noir }}>
+                      Ce qu&apos;on a vérifié, point par point
+                    </h3>
+                    <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris2 }}>
+                      {audit?.url
+                        ? <>Analyse du code réellement servi par <strong style={{ fontWeight: 700 }}>{audit.url}</strong>. Tout ce qui n&apos;a pas pu être lu est marqué comme non vérifié — on ne le compte pas contre vous.</>
+                        : <>Tout ce qui n&apos;a pas pu être lu est marqué comme non vérifié — on ne le compte pas contre vous.</>}
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {checks.map((c, i) => {
+                        const mark = c.status === "ok" ? "✓" : c.status === "fail" ? "✕" : "?";
+                        const color = c.status === "ok" ? "#30A46C" : c.status === "fail" ? "#E5484D" : MOSH.gris3;
+                        return (
+                          <div key={c.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "11px 0", borderTop: i ? "1px solid rgba(26,26,26,0.08)" : "none" }}>
+                            <span style={{ color, fontWeight: 700, flexShrink: 0, lineHeight: 1.5, width: 14 }}>{mark}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: MOSH.noir }}>{c.label}</p>
+                              <p style={{ margin: "3px 0 0", fontSize: 12.5, lineHeight: 1.5, color: MOSH.gris2, wordBreak: "break-word" }}>{c.evidence}</p>
+                            </div>
+                            {c.max > 0 && (
+                              <span style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: c.points > 0 ? MOSH.noir : MOSH.gris3 }}>
+                                {c.points}/{c.max}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p style={{ margin: "16px 0 0", fontSize: 12.5, lineHeight: 1.55, color: MOSH.gris2 }}>
+                      À savoir : nous n&apos;avons <strong style={{ fontWeight: 700 }}>pas</strong> accès à votre fiche Google Business ni à vos avis Google — nous ne portons donc aucun jugement dessus.
+                      {unknownChecks.length > 0 && " Les lignes marquées « ? » n'ont pas pu être vérifiées et ne pèsent pas sur votre score."}
+                      {okChecks.length > 0 && ` Bonne nouvelle : ${okChecks.length} point${okChecks.length > 1 ? "s sont déjà en place" : " est déjà en place"} chez vous.`}
+                    </p>
                   </div>
                 )}
 
