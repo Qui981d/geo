@@ -156,6 +156,42 @@ function renderInline(text: string, key: string) {
 }
 
 /**
+ * Normalise un nom d'entreprise : accents, casse, ponctuation et forme
+ * juridique sautent. "Quido Conciergerie (Sàrl)" → "quido conciergerie".
+ */
+function normalizeName(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(sarl|sa|sas|sasu|eurl|gmbh|ag|ltd|llc|inc|srl|spa|cie|company)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Deux libellés désignent-ils la MÊME entreprise ?
+ * L'IA écrit rarement le nom exactement comme l'utilisateur l'a tapé
+ * ("Quido Conciergerie" vs "Quido Conciergerie Locative") : une égalité
+ * stricte laissait l'utilisateur dans sa propre liste de concurrents.
+ */
+function sameCompany(a: string, b: string): boolean {
+  const x = normalizeName(a);
+  const y = normalizeName(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  // L'un contient l'autre, aux frontières de mots (évite "sand" dans "sandra").
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  if (short.length >= 4 && new RegExp(`\\b${short.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(long)) return true;
+  // Sinon : au moins deux mots significatifs communs. Un seul mot partagé ne
+  // suffit pas, sinon "Conciergerie du Lac" passerait pour "Quido Conciergerie".
+  const wx = new Set(x.split(" ").filter((w) => w.length >= 4));
+  const shared = y.split(" ").filter((w) => w.length >= 4 && wx.has(w));
+  return shared.length >= 2;
+}
+
+/**
  * Analyse la réponse de l'IA (liste "1. … 2. … 3. …") : renvoie le rang de
  * l'entreprise (0 = absente) et les noms de la liste dans l'ordre.
  */
@@ -172,7 +208,7 @@ function extractRanking(raw: string, company: string): { rank: number; names: st
       .split(/[–—:-]/)[0]
       .trim();
     if (name) names.push(name);
-    if (c && c.length > 1 && rank === 0 && b.toLowerCase().includes(c)) rank = i + 1;
+    if (c && c.length > 1 && rank === 0 && (sameCompany(name, company) || normalizeName(b).includes(normalizeName(company)))) rank = i + 1;
   });
   if (rank === 0 && c && c.length > 1 && raw.toLowerCase().includes(c)) rank = 1; // cité hors liste
   return { rank, names };
@@ -625,7 +661,7 @@ export default function MoshFunnel() {
       setIsThinking(false);
       const score = computeScore(rank, names.length, techScore).total;
       const ahead = frenchList(names.slice(0, Math.max(0, rank - 1)));
-      const top = frenchList(names.filter((n) => n.toLowerCase() !== nom.toLowerCase()).slice(0, 3));
+      const top = frenchList(names.filter((n) => !sameCompany(n, nom)).slice(0, 3));
       // Concurrents que l'utilisateur a cités et qui ressortent dans la réponse
       const mentioned = matchMentioned(names, concurrents);
       const callback = mentioned.length
@@ -1131,7 +1167,7 @@ Votre score : **${score}/100**.${callback}`;
                 on reste libre de relire le chat autant qu'on veut (pas de bascule). */}
             {showReport && diagnosticResult && (() => {
               const dr = diagnosticResult;
-              const others = dr.competitors.filter((n) => n.toLowerCase() !== nom.toLowerCase());
+              const others = dr.competitors.filter((n) => !sameCompany(n, nom));
               const them = frenchList(others.slice(0, 3));
               const topComp = others[0] || "un concurrent";
               const posLabel = dr.rank === 1 ? "1re place" : dr.rank >= 2 ? `${dr.rank}e place` : "hors classement";
