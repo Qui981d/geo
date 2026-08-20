@@ -207,6 +207,21 @@ function isRefusalOnly(s: string): boolean {
   return /^(non|nope|nan|pas (du tout|vraiment)|faux|incorrect)\.?$/i.test((s || "").trim());
 }
 
+/**
+ * Ville citée en fin de correction ("… à Genève", "… sur Lyon").
+ * Sans ville explicite on renvoie "" : on la redemandera plutôt que de garder
+ * celle que l'utilisateur vient justement de contester.
+ */
+function cityFromCorrection(s: string): string {
+  const m = (s || "")
+    .trim()
+    // (?:^|[\s,]) et non \b : "à" n'est pas un caractère de mot ASCII, donc
+    // \b ne déclenche pas devant lui et toutes les villes en "à …" passaient
+    // à la trappe.
+    .match(/(?:^|[\s,])(?:à|a|sur|vers|dans|autour de|proche de|près de)\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]+(?:[-\s][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})\s*[.!?]?$/);
+  return m ? m[1].trim() : "";
+}
+
 /** Mots porteurs de sens d'une saisie libre (hors mots vides). */
 function significantWords(s: string, min = 4): string[] {
   return [...new Set(normalizeName(s).split(" ").filter((w) => w.length >= min && !STOP_WORDS.has(w)))];
@@ -671,17 +686,27 @@ export default function MoshFunnel() {
         } else if (isRefusalOnly(text)) {
           botReply("OK, au temps pour moi.\n\n**Que faites-vous concrètement?**\n\nLa version que vous donnez au voisin, pas la version corporate.", "ask_activite");
         } else {
-          // L'utilisateur corrige : sa formulation prime sur notre lecture.
-          setActivite(text);
-          setIsThinking(true);
-          reformulateActivity(text, zone).then((q) => {
-            const fixed = (q || text).trim();
-            setSearchQuery(fixed);
-            askNext(
-              `OK, on testera donc "**Recommande-moi les meilleurs ${fixed} à ${zone}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
-              "ask_concurrents",
-            );
-          });
+          // L'utilisateur corrige : sa formulation prime sur notre lecture, y
+          // compris pour la ville s'il en cite une ("… à Genève"). Sinon on la
+          // redemande plutôt que de garder une ville qu'il vient de contester.
+          {
+            const cityFix = cityFromCorrection(text);
+            setActivite(text);
+            setIsThinking(true);
+            reformulateActivity(text, cityFix || zone).then((q) => {
+              const fixed = (q || text).trim();
+              setSearchQuery(fixed);
+              if (cityFix) {
+                setZone(cityFix);
+                askNext(
+                  `Au temps pour moi. On testera donc "**Recommande-moi les meilleurs ${fixed} à ${cityFix}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
+                  "ask_concurrents",
+                );
+              } else {
+                askNext(`Au temps pour moi, **${fixed}** donc.\n\nEt **vous êtes basés où?**`, "ask_zone");
+              }
+            });
+          }
         }
         break;
       case "ask_activite":

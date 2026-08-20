@@ -50,6 +50,15 @@ const SOCIAL_HOSTS = [
   'x.com', 'twitter.com', 'youtube.com', 'pinterest.com', 'threads.net',
 ];
 
+/** Mots qui suivent souvent "à" sans être une ville ("livraison à domicile"). */
+const NON_CITY_WORDS = new Set([
+  'domicile', 'distance', 'emporter', 'volonte', 'prix', 'partir', 'propos',
+  'toute', 'tous', 'tout', 'chaque', 'votre', 'notre', 'vos', 'nos', 'vous',
+  'nous', 'partout', 'proximite', 'demande', 'louer', 'vendre', 'venir',
+  'suivre', 'decouvrir', 'reserver', 'domicile', 'ligne', 'jour', 'jours',
+  'semaine', 'heure', 'heures', 'minutes', 'partager', 'savoir', 'travers',
+]);
+
 const AI_BOTS = [
   'gptbot', 'oai-searchbot', 'chatgpt-user', 'perplexitybot', 'perplexity-user',
   'claudebot', 'claude-web', 'anthropic-ai', 'google-extended', 'ccbot',
@@ -253,14 +262,38 @@ function findPostalAddress(text: string): string {
   );
   const cityMatch = [...text.matchAll(/\b(?:CH-|FR-)?(\d{4,5})\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]{2,}(?:[\s-][A-ZÀ-Ü]?[\wÀ-ÿ'’-]+)?)/g)];
   const city = cityMatch.find((m) => {
+    // Une raison sociale n'est pas une ville : "© 2025 Machin SNC" ne doit
+    // jamais passer pour le code postal 2025 de la ville "Machin SNC".
+    if (/\b(snc|sa|sarl|s[àa]rl|sas|sasu|eurl|gmbh|ag|ltd|llc|inc|srl|spa|group|groupe|company|cie)\b/i.test(m[2])) {
+      return false;
+    }
     const n = Number(m[1]);
     const looksLikeYear = m[1].length === 4 && n >= 1900 && n <= 2035;
-    // Un code à 4 chiffres qui ressemble à une année n'est retenu que si une
-    // voie a été trouvée à côté (sinon c'est presque toujours un copyright).
-    return !looksLikeYear || Boolean(street);
+    if (!looksLikeYear) return true;
+    // Un code qui ressemble à une année n'est retenu que s'il est COLLÉ à la
+    // voie. Exiger seulement qu'une voie existe quelque part sur le site ne
+    // suffit pas : celle des mentions légales validait le copyright du pied
+    // de page, à l'autre bout de la page.
+    if (!street || street.index === undefined || m.index === undefined) return false;
+    return Math.abs(m.index - (street.index + street[0].length)) <= 40;
   });
-  const parts = [street?.[0].trim(), city?.[0].trim()].filter(Boolean) as string[];
-  return parts.join(', ');
+  let streetStr = street?.[0].trim() || '';
+  const cityStr = city?.[0].trim() || '';
+  const cp = city?.[1];
+  // La regex de voie avale parfois le code postal comme numéro de rue :
+  // "Route de Champ-Colin 18, 1260" + "1260 Nyon" affichait le code deux fois.
+  if (cp && streetStr.endsWith(cp)) streetStr = streetStr.replace(/[\s,]*\d{4,5}$/, '');
+  return [streetStr, cityStr].filter(Boolean).join(', ');
+}
+
+/** Comparaison laxiste de deux libellés (accents, casse, ponctuation). */
+function normalizeForCompare(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 function findEmail(html: string): string {
@@ -723,7 +756,32 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     (n) => typeof n.name === 'string' && typesOf([n]).some((x) => LOCAL_TYPES.test(x)),
   );
   const localityNode = findNode(nodes, (n) => typeof n.addressLocality === 'string');
-  const cityFromText = text.match(/\b(?:CH-|FR-)?\d{4,5}\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]+(?:[- ][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/);
+  // La ville ne se déduit QUE d'une adresse déjà validée par findPostalAddress
+  // (qui écarte les années : "© 2025 Machin SNC" se lisait sinon comme le code
+  // postal 2025 de la ville "Machin SNC").
+  const cityFromText = addr.match(/\b(?:CH-|FR-)?\d{4,5}\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]+(?:[- ][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/);
+  const businessName = (namedNode?.name as string) || meta(html, 'og:site_name') || '';
+  // Dernier recours quand le site n'a aucune adresse : la ville annoncée dans
+  // le titre ou la description ("… à Genève"). C'est une hypothèse, jamais un
+  // constat : elle ne sert qu'à proposer une requête que l'utilisateur valide.
+  const cityFromHeadline = (() => {
+    const m = `${t}. ${desc}`.match(
+      /(?:^|[\s,])(?:à|a|sur|en|proche de|près de)\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]{2,}(?:[-\s][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/,
+    );
+    if (!m) return '';
+    const first = normalizeForCompare(m[1]).split(' ')[0];
+    return NON_CITY_WORDS.has(first) ? '' : m[1].trim();
+  })();
+  const cityCandidate = (
+    (localityNode?.addressLocality as string) ||
+    cityFromText?.[1] ||
+    cityFromHeadline ||
+    ''
+  ).trim();
+  // Dernier filet : une raison sociale n'est pas une ville.
+  const cityLooksLikeCompany =
+    /\b(snc|sa|sarl|s[àa]rl|sas|sasu|eurl|gmbh|ag|ltd|llc|inc|srl|spa|group|groupe|company|cie|store|shop)\b/i.test(cityCandidate) ||
+    (Boolean(businessName) && normalizeForCompare(cityCandidate) === normalizeForCompare(businessName));
   const services = nodes
     .filter((n) => {
       const ts = typesOf([n]);
@@ -733,10 +791,10 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     .filter(Boolean)
     .slice(0, 8);
   audit.profile = {
-    name: (namedNode?.name as string) || meta(html, 'og:site_name') || '',
+    name: businessName,
     title: t,
     description: desc,
-    city: (localityNode?.addressLocality as string) || cityFromText?.[1] || '',
+    city: cityLooksLikeCompany ? '' : cityCandidate,
     types: localTypes.length ? localTypes : schemaTypes,
     services: [...new Set(services)],
   };
