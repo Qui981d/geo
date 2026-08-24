@@ -7,13 +7,21 @@ const client = new OpenAI({
 
 export async function POST(req: NextRequest) {
   try {
-    const { metier, ville } = await req.json();
+    const { metier, ville, query } = await req.json();
 
-    if (!metier || !ville) {
-      return Response.json({ error: 'Métier et ville requis' }, { status: 400 });
+    // `query` : la question complète telle qu'un prospect la taperait (formulée
+    // par /api/reformulate). L'ancien gabarit metier/ville reste en repli.
+    const base =
+      typeof query === 'string' && query.trim()
+        ? query.trim().replace(/[\s.!?]+$/, '')
+        : metier && ville
+        ? `Recommande-moi le meilleur ${metier} à ${ville}`
+        : '';
+    if (!base) {
+      return Response.json({ error: 'Question (ou métier + ville) requise' }, { status: 400 });
     }
 
-    const userQuestion = `Recommande-moi le meilleur ${metier} à ${ville}. Donne-moi tes 3 meilleures recommandations avec une courte description pour chacune.`;
+    const userQuestion = `${base}. Donne-moi tes 3 meilleures recommandations avec une courte description pour chacune.`;
 
     const instructions = `Tu es l'IA de diagnostic de MOSH. Ton ton est direct, un peu mordant, jamais corporate. Tu parles comme un ami qui bosse dans le marketing digital et qui ne bullshit pas.
 

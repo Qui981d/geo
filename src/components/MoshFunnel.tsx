@@ -611,11 +611,18 @@ export default function MoshFunnel() {
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  /* ── Reformule l'activité brute en catégorie qu'un prospect chercherait ──
+  /* ── Comprend l'offre et formule la question qu'un prospect poserait ──
      `contenu` : le texte réel du site (crawl) — sans lui, le LLM prenait le
      thème du titre pour l'activité ("sorties nocturnes" pour un vendeur de
-     pass sorties). */
-  const reformulateActivity = async (raw: string, ville: string, contenu = ""): Promise<string> => {
+     pass sorties).
+     `offre` : suite naturelle de "vous proposez …" ; `query` : la question
+     complète (ville incluse) — plus jamais le moule "les meilleurs X à Y"
+     plaqué sur une catégorie qui ne s'y conjugue pas. */
+  const reformulateActivity = async (
+    raw: string,
+    ville: string,
+    contenu = "",
+  ): Promise<{ offre: string; query: string }> => {
     try {
       const res = await fetch("/api/reformulate", {
         method: "POST",
@@ -624,11 +631,13 @@ export default function MoshFunnel() {
       });
       if (!res.ok) throw new Error("reformulate api error");
       const data = await res.json();
-      const q = typeof data.query === "string" ? data.query.trim() : "";
-      return q || raw; // fallback : activité brute
+      return {
+        offre: typeof data.offre === "string" ? data.offre.trim() : "",
+        query: typeof data.query === "string" ? data.query.trim() : "",
+      };
     } catch (err) {
       console.error(err);
-      return raw;
+      return { offre: "", query: "" };
     }
   };
 
@@ -662,21 +671,22 @@ export default function MoshFunnel() {
         ]).then(async (a) => {
           const p = a?.profile;
           const city = (p?.city || "").trim();
-          let guess = "";
+          let offre = "";
+          let prospectQ = "";
           if (p && (p.title || p.description || p.services.length || p.pageText)) {
             const brief = [p.title, p.description, p.services.join(", ")].filter(Boolean).join(". ");
-            const q = await reformulateActivity(brief, city, p.pageText || "");
-            // reformulateActivity renvoie sa saisie telle quelle si l'appel
-            // échoue : on ne garde que ce qui ressemble à une catégorie courte.
-            if (q && q !== brief && q.length <= 45) guess = q;
+            const r = await reformulateActivity(brief, city, p.pageText || "");
+            // Garde-fous de plausibilité : une réponse fleuve n'est pas une offre.
+            if (r.offre && r.offre.length <= 90) offre = r.offre;
+            if (r.query && r.query.length <= 140) prospectQ = r.query;
           }
           setIsThinking(false);
-          if (guess && city) {
-            setActivite(guess);
-            setSearchQuery(guess);
+          if (offre && prospectQ && city) {
+            setActivite(offre);
+            setSearchQuery(prospectQ);
             setZone(city);
             askNext(
-              `J'ai lu votre site. Si je comprends bien, vous proposez **${guess}**, à **${city}**.\n\nDu coup la question que je vais poser à l'IA — celle qu'un de vos prospects taperait — c'est :\n\n"${buildQuery(guess, city)}"\n\n**On teste celle-là?** Si je suis à côté, dites-moi ce que vous faites vraiment.`,
+              `J'ai lu votre site. Si je comprends bien, vous proposez **${offre}**, à **${city}**.\n\nDu coup la question que je vais poser à l'IA — celle qu'un de vos prospects taperait — c'est :\n\n"${prospectQ}"\n\n**On teste celle-là?** Si je suis à côté, dites-moi ce que vous faites vraiment.`,
               "confirm_query",
             );
           } else {
@@ -701,16 +711,20 @@ export default function MoshFunnel() {
             const cityFix = cityFromCorrection(text);
             setActivite(text);
             setIsThinking(true);
-            reformulateActivity(text, cityFix || zone).then((q) => {
-              const fixed = (q || text).trim();
-              setSearchQuery(fixed);
+            reformulateActivity(text, cityFix || zone).then((r) => {
+              const fixed = (r.offre || text).trim();
               if (cityFix) {
+                const q = (r.query || buildQuery(fixed, cityFix)).trim();
+                setSearchQuery(q);
                 setZone(cityFix);
                 askNext(
-                  `Au temps pour moi. On testera donc "**${buildQuery(fixed, cityFix)}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
+                  `Au temps pour moi. On testera donc "**${q}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
                   "ask_concurrents",
                 );
               } else {
+                // Pas de ville confirmée : la question sera reformulée une fois
+                // la ville connue — on ne garde pas une query à moitié juste.
+                setSearchQuery("");
                 askNext(`Au temps pour moi, **${fixed}** donc.\n\nEt **vous êtes basés où?**`, "ask_zone");
               }
             });
@@ -730,12 +744,20 @@ export default function MoshFunnel() {
         setIsThinking(true);
         // Le crawl tourne depuis l'étape du site. La requête est déjà connue si
         // l'utilisateur l'a confirmée ; sinon on la déduit de ce qu'il a décrit.
-        (searchQuery.trim() ? Promise.resolve(searchQuery.trim()) : reformulateActivity(activite, zone)).then((query) => {
+        // searchQuery contient déjà la question complète si l'utilisateur l'a
+        // validée ; sinon on la formule depuis ce qu'il a décrit (avec repli
+        // sur le gabarit si l'API ne répond pas).
+        (searchQuery.trim()
+          ? Promise.resolve(searchQuery.trim())
+          : reformulateActivity(activite, zone).then((r) =>
+              (r.query || buildQuery((r.offre || activite).trim(), zone)).trim(),
+            )
+        ).then((query) => {
           setSearchQuery(query);
           setIsThinking(false);
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"${buildQuery(query, zone)}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
+            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"${query}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
           ]);
           setChatStep("scanning");
           setTimeout(() => triggerApiCall(query, text), 2000);
@@ -746,7 +768,8 @@ export default function MoshFunnel() {
 
   /* ── Real API call ── */
   const triggerApiCall = async (query?: string, rivals?: string) => {
-    const metier = (query || searchQuery || activite).trim();
+    // La question complète du prospect ; à défaut, le gabarit sur l'activité.
+    const question = (query || searchQuery || buildQuery(activite || "prestataire", zone)).trim();
     setIsThinking(true);
     setStreamingContent("");
     abortRef.current = new AbortController();
@@ -755,7 +778,7 @@ export default function MoshFunnel() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metier, ville: zone, company: nom }),
+        body: JSON.stringify({ query: question, ville: zone, company: nom }),
         signal: abortRef.current.signal,
       });
 
@@ -809,7 +832,7 @@ export default function MoshFunnel() {
       const namedRival = hasNamedRival(rivalsText);
       // On ne dit "ils n'y sont pas" que s'ils sont absents de TOUTE la réponse,
       // pas seulement du classement : sinon le constat serait faux.
-      const rivalAbsent = namedRival && !mentioned.length && !rivalAppearsIn(fullContent, rivalsText, `${metier} ${zone}`);
+      const rivalAbsent = namedRival && !mentioned.length && !rivalAppearsIn(fullContent, rivalsText, `${question} ${zone}`);
       const rivalLabel = rivalsText.length > 60 ? `${rivalsText.slice(0, 60)}…` : rivalsText;
       const callback = mentioned.length
         ? `\n\nEt tiens — **${frenchList(mentioned.map((m) => m.name))}**, que vous avez cité${mentioned.length > 1 ? "s" : ""} : ${mentioned.length > 1 ? "ils sortent" : `il sort`} bien dans la réponse (${mentioned.map((m) => `${m.name} en ${m.rank}${m.rank === 1 ? "re" : "e"}`).join(", ")}). Vous ne les aviez pas inventés.`
@@ -1417,7 +1440,7 @@ Votre score : **${score}/100**.${callback}`;
                 {dr.competitors.length > 0 && (
                   <div style={{ padding: "20px 24px", borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
                     <p style={{ margin: "0 0 14px", fontSize: 13, color: MOSH.gris3 }}>
-                      Ce que l&apos;IA répond quand un prospect demande «&nbsp;le meilleur {searchQuery || activite || "prestataire"} à {zone}&nbsp;» :
+                      Ce que l&apos;IA répond quand un prospect demande «&nbsp;{searchQuery.trim() || buildQuery(activite || "prestataire", zone)}&nbsp;» :
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                       {dr.competitors.map((name, i) => {
