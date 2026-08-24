@@ -925,12 +925,16 @@ Votre score : **${score}/100**.${callback}`;
       <style>{`.mosh-chat-input::placeholder { color: ${MOSH.gris3}; opacity: 1; }
 .mosh-chat-scroll { scrollbar-width: none; } .mosh-chat-scroll::-webkit-scrollbar { display: none; }
 /* Rapport : une colonne sur mobile, deux colonnes sur desktop (rail de
-   synthèse sticky à gauche, lecture détaillée à droite). */
+   synthèse sticky à gauche, lecture détaillée à droite).
+   Le sticky vit sur un div INTERNE dont le parent (item de grille, étiré)
+   fait toute la hauteur de la rangée : c'est lui qui borne le sticky — posé
+   directement sur l'item, le rail débordait de sa rangée et recouvrait les
+   sections pleine largeur en bas de page. */
 .mosh-rep { display: flex; flex-direction: column; gap: 20px; max-width: 620px; width: 100%; }
 .mosh-rep-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 @media (min-width: 1024px) {
-  .mosh-rep { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 24px; align-items: start; max-width: 1140px; }
-  .mosh-rep-rail { position: sticky; top: 24px; }
+  .mosh-rep { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 24px; max-width: 1140px; }
+  .mosh-rep-rail { position: sticky; top: 24px; max-height: calc(100dvh - 48px); overflow-y: auto; scrollbar-width: thin; }
   .mosh-rep-full { grid-column: 1 / -1; }
 }`}</style>
 
@@ -1386,6 +1390,7 @@ Votre score : **${score}/100**.${callback}`;
               <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
               <div className="mosh-rep">
                 {/* Rail de synthèse : score, décomposition, classement — sticky en desktop */}
+                <div>
                 <div className="mosh-rep-col mosh-rep-rail">
                 {/* ── Jauge de score ── */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -1460,6 +1465,7 @@ Votre score : **${score}/100**.${callback}`;
                     </div>
                   </div>
                 )}
+                </div>
                 </div>
 
                 {/* Colonne de lecture : analyse, red flags, vérifications */}
