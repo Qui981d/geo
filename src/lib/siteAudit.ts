@@ -761,9 +761,10 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
   // postal 2025 de la ville "Machin SNC").
   const cityFromText = addr.match(/\b(?:CH-|FR-)?\d{4,5}\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]+(?:[- ][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/);
   const businessName = (namedNode?.name as string) || meta(html, 'og:site_name') || '';
-  // Dernier recours quand le site n'a aucune adresse : la ville annoncée dans
-  // le titre ou la description ("… à Genève"). C'est une hypothèse, jamais un
-  // constat : elle ne sert qu'à proposer une requête que l'utilisateur valide.
+  // La ville annoncée dans le titre ou la description ("… à Genève") : c'est
+  // le marché que le site revendique auprès des prospects. C'est une hypothèse,
+  // jamais un constat : elle ne sert qu'à proposer une requête que
+  // l'utilisateur valide.
   const cityFromHeadline = (() => {
     const m = `${t}. ${desc}`.match(
       /(?:^|[\s,])(?:à|a|sur|en|proche de|près de)\s+([A-ZÀ-Ü][\wÀ-ÿ'’-]{2,}(?:[-\s][A-ZÀ-Ü][\wÀ-ÿ'’-]+){0,2})/,
@@ -772,10 +773,13 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     const first = normalizeForCompare(m[1]).split(' ')[0];
     return NON_CITY_WORDS.has(first) ? '' : m[1].trim();
   })();
+  // La ville revendiquée en titre prime sur l'adresse administrative : un site
+  // qui titre "Sorties à Genève" avec un siège à Nyon vise des prospects
+  // genevois — proposer "… à Nyon" serait aussi faux que la raison sociale.
   const cityCandidate = (
+    cityFromHeadline ||
     (localityNode?.addressLocality as string) ||
     cityFromText?.[1] ||
-    cityFromHeadline ||
     ''
   ).trim();
   // Dernier filet : une raison sociale n'est pas une ville.
