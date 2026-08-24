@@ -35,11 +35,15 @@ Réponds en JSON avec exactement ces deux champs :
 - "offre" : la suite naturelle de la phrase "vous proposez …" — concrète, 12 mots max, sans la ville, sans nom de marque, sans guillemets. Ex : "un pass qui donne des bons plans dans les bars et clubs".
 - "query" : la question complète qu'un prospect taperait à une IA (ChatGPT) pour trouver ce type d'offre — formulée naturellement, à la première personne, AVEC la ville quand elle est fournie, sans nom de marque. Le prospect veut des noms d'entreprises ou d'offres à comparer, pas un conseil général.
 
+Règle capitale pour "query" : elle exprime le BESOIN du prospect, avec ses mots à lui — jamais le format du produit. Un prospect ne sait pas qu'il cherche un "abonnement", un "pass", une "plateforme" ou un "programme" : il cherche le bénéfice ("bons plans", "réductions", "où sortir", "se remettre en forme"). Mauvais : "Quels sont les meilleurs abonnements pour sortir à Genève ?". Bon : "Quels sont les meilleurs bons plans pour sortir à Genève ?".
+
 Exemples :
 description "je vends un membership de salle de sport" (à Lausanne)
 -> {"offre": "des abonnements de salle de sport", "query": "Recommande-moi les meilleures salles de sport à Lausanne"}
 description "Sorties & Vie Nocturne | Offres Exclusives" + un site qui vend un pass donnant un verre offert dans des bars partenaires (à Genève)
 -> {"offre": "un pass qui donne des bons plans dans les bars et clubs", "query": "Quels sont les meilleurs bons plans pour sortir à Genève ?"}
+description "box mensuelle de produits du terroir en livraison" (à Fribourg)
+-> {"offre": "une box mensuelle de produits du terroir livrée à domicile", "query": "Où trouver les meilleurs produits du terroir livrés à domicile à Fribourg ?"}
 description "cabinet d'avocats en droit des affaires" (à Nyon)
 -> {"offre": "des services d'avocat en droit des affaires", "query": "Recommande-moi les meilleurs avocats en droit des affaires à Nyon"}`,
         },
