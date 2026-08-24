@@ -222,6 +222,11 @@ function cityFromCorrection(s: string): string {
   return m ? m[1].trim() : "";
 }
 
+/** La question qu'un prospect poserait à l'IA — une seule formulation partout. */
+function buildQuery(q: string, ville: string): string {
+  return `Recommande-moi les meilleurs ${q} à ${ville}`;
+}
+
 /** Mots porteurs de sens d'une saisie libre (hors mots vides). */
 function significantWords(s: string, min = 4): string[] {
   return [...new Set(normalizeName(s).split(" ").filter((w) => w.length >= min && !STOP_WORDS.has(w)))];
@@ -606,13 +611,16 @@ export default function MoshFunnel() {
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  /* ── Reformule l'activité brute en catégorie qu'un prospect chercherait ── */
-  const reformulateActivity = async (raw: string, ville: string): Promise<string> => {
+  /* ── Reformule l'activité brute en catégorie qu'un prospect chercherait ──
+     `contenu` : le texte réel du site (crawl) — sans lui, le LLM prenait le
+     thème du titre pour l'activité ("sorties nocturnes" pour un vendeur de
+     pass sorties). */
+  const reformulateActivity = async (raw: string, ville: string, contenu = ""): Promise<string> => {
     try {
       const res = await fetch("/api/reformulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activite: raw, ville }),
+        body: JSON.stringify({ activite: raw, ville, contenu }),
       });
       if (!res.ok) throw new Error("reformulate api error");
       const data = await res.json();
@@ -655,9 +663,9 @@ export default function MoshFunnel() {
           const p = a?.profile;
           const city = (p?.city || "").trim();
           let guess = "";
-          if (p && (p.title || p.description || p.services.length)) {
+          if (p && (p.title || p.description || p.services.length || p.pageText)) {
             const brief = [p.title, p.description, p.services.join(", ")].filter(Boolean).join(". ");
-            const q = await reformulateActivity(brief, city);
+            const q = await reformulateActivity(brief, city, p.pageText || "");
             // reformulateActivity renvoie sa saisie telle quelle si l'appel
             // échoue : on ne garde que ce qui ressemble à une catégorie courte.
             if (q && q !== brief && q.length <= 45) guess = q;
@@ -668,7 +676,7 @@ export default function MoshFunnel() {
             setSearchQuery(guess);
             setZone(city);
             askNext(
-              `J'ai ouvert votre site. Si je lis bien, vous faites **${guess}**, à **${city}**.\n\nDu coup la question que je vais poser à l'IA — celle qu'un de vos prospects taperait — c'est :\n\n"Recommande-moi les meilleurs ${guess} à ${city}"\n\n**On teste celle-là?** Si je suis à côté, dites-moi ce que vous faites vraiment.`,
+              `J'ai lu votre site. Si je comprends bien, vous proposez **${guess}**, à **${city}**.\n\nDu coup la question que je vais poser à l'IA — celle qu'un de vos prospects taperait — c'est :\n\n"${buildQuery(guess, city)}"\n\n**On teste celle-là?** Si je suis à côté, dites-moi ce que vous faites vraiment.`,
               "confirm_query",
             );
           } else {
@@ -699,7 +707,7 @@ export default function MoshFunnel() {
               if (cityFix) {
                 setZone(cityFix);
                 askNext(
-                  `Au temps pour moi. On testera donc "**Recommande-moi les meilleurs ${fixed} à ${cityFix}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
+                  `Au temps pour moi. On testera donc "**${buildQuery(fixed, cityFix)}**".\n\nDernière chose : **quels concurrents vous agacent le plus?**\n\nCeux qui récupèrent vos clients, qui sont toujours devant, etc.`,
                   "ask_concurrents",
                 );
               } else {
@@ -727,7 +735,7 @@ export default function MoshFunnel() {
           setIsThinking(false);
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"Recommande-moi les meilleurs ${query} à ${zone}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
+            { role: "assistant", content: `OK, j'ai tout ce qu'il me faut.\n\nJe vais maintenant poser la question qu'un prospect poserait à une IA :\n\n"${buildQuery(query, zone)}"\n\nEt on va voir si **${nom}** fait partie de la réponse. Accrochez-vous.` },
           ]);
           setChatStep("scanning");
           setTimeout(() => triggerApiCall(query, text), 2000);
@@ -892,7 +900,16 @@ Votre score : **${score}/100**.${callback}`;
     >
       {/* Style du placeholder de l'input chat (couleur maquette #8C8C8C) */}
       <style>{`.mosh-chat-input::placeholder { color: ${MOSH.gris3}; opacity: 1; }
-.mosh-chat-scroll { scrollbar-width: none; } .mosh-chat-scroll::-webkit-scrollbar { display: none; }`}</style>
+.mosh-chat-scroll { scrollbar-width: none; } .mosh-chat-scroll::-webkit-scrollbar { display: none; }
+/* Rapport : une colonne sur mobile, deux colonnes sur desktop (rail de
+   synthèse sticky à gauche, lecture détaillée à droite). */
+.mosh-rep { display: flex; flex-direction: column; gap: 20px; max-width: 620px; width: 100%; }
+.mosh-rep-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (min-width: 1024px) {
+  .mosh-rep { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 24px; align-items: start; max-width: 1140px; }
+  .mosh-rep-rail { position: sticky; top: 24px; }
+  .mosh-rep-full { grid-column: 1 / -1; }
+}`}</style>
 
       <AnimatePresence mode="wait">
 
@@ -1344,7 +1361,9 @@ Votre score : **${score}/100**.${callback}`;
               ];
               return (
               <div ref={reportRef} style={{ minHeight: "100svh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px 56px", background: MOSH.fond }}>
-              <div style={{ maxWidth: 620, width: "100%" }}>
+              <div className="mosh-rep">
+                {/* Rail de synthèse : score, décomposition, classement — sticky en desktop */}
+                <div className="mosh-rep-col mosh-rep-rail">
                 {/* ── Jauge de score ── */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                   <p style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, color: MOSH.gris2, margin: "0 0 18px" }}>Votre score de visibilité IA</p>
@@ -1365,7 +1384,7 @@ Votre score : **${score}/100**.${callback}`;
                 </div>
 
                 {/* ── Décomposition du score (barre segmentée + détail) ── */}
-                <div style={{ marginTop: 28, padding: "22px 24px", borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                <div style={{ padding: "22px 24px", borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
                   <p style={{ margin: "0 0 14px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: MOSH.gris2 }}>Comment ce score se construit</p>
                   <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "rgba(26,26,26,0.08)" }}>
                     {sb.presence > 0 && <div style={{ width: `${sb.presence}%`, background: MOSH.noir }} />}
@@ -1396,7 +1415,7 @@ Votre score : **${score}/100**.${callback}`;
 
                 {/* Le classement (preuve condensée, pas la réponse verbeuse répétée) */}
                 {dr.competitors.length > 0 && (
-                  <div style={{ marginTop: 20, padding: "20px 24px", borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
+                  <div style={{ padding: "20px 24px", borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
                     <p style={{ margin: "0 0 14px", fontSize: 13, color: MOSH.gris3 }}>
                       Ce que l&apos;IA répond quand un prospect demande «&nbsp;le meilleur {searchQuery || activite || "prestataire"} à {zone}&nbsp;» :
                     </p>
@@ -1418,9 +1437,12 @@ Votre score : **${score}/100**.${callback}`;
                     </div>
                   </div>
                 )}
+                </div>
 
+                {/* Colonne de lecture : analyse, red flags, vérifications */}
+                <div className="mosh-rep-col">
                 {/* Pourquoi — l'analyse (la valeur qui distingue de "faire soi-même sur ChatGPT") */}
-                <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                <div style={{ padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
                   <h2 style={{ margin: "0 0 14px", fontSize: "clamp(1.15rem, 3vw, 1.5rem)", fontWeight: 700, lineHeight: 1.3, color: MOSH.noir }}>
                     {dr.rank === 1
                       ? `Pourquoi vous passez devant ${them || "vos concurrents"}`
@@ -1454,7 +1476,7 @@ Votre score : **${score}/100**.${callback}`;
 
                 {/* Red flags — issus du CRAWL réel du site : chaque point a sa preuve */}
                 {(redflagsLoading || parsedRedflags.length > 0) && (
-                  <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
+                  <div style={{ padding: 28, borderRadius: 8, background: MOSH.noir, textAlign: "left" }}>
                     <h3 style={{ margin: "0 0 6px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, lineHeight: 1.3, color: "#fff" }}>
                       Ce qu&apos;on a repéré sur {nom}
                     </h3>
@@ -1496,7 +1518,7 @@ Votre score : **${score}/100**.${callback}`;
 
                 {/* Transparence : ce qui est OK chez vous, et ce qu'on ne peut PAS vérifier */}
                 {!redflagsLoading && checks.length > 0 && (
-                  <div style={{ marginTop: 20, padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                  <div style={{ padding: 28, borderRadius: 8, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
                     <h3 style={{ margin: "0 0 6px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, lineHeight: 1.3, color: MOSH.noir }}>
                       Ce qu&apos;on a vérifié, point par point
                     </h3>
@@ -1532,9 +1554,10 @@ Votre score : **${score}/100**.${callback}`;
                     </p>
                   </div>
                 )}
+                </div>
 
                 {/* ── Le marché : FOMO (tendance du secteur, pas les métriques de l'utilisateur) ── */}
-                <div style={{ marginTop: 20, padding: 28, borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
+                <div className="mosh-rep-full" style={{ padding: 28, borderRadius: 12, background: MOSH.blanc, border: `1px solid rgba(26,26,26,0.12)`, textAlign: "left" }}>
                   <h3 style={{ margin: "0 0 4px", fontSize: "clamp(1.05rem, 3vw, 1.35rem)", fontWeight: 700, color: MOSH.noir }}>Pourquoi ça devient urgent</h3>
                   <p style={{ margin: "0 0 18px", fontSize: 13, color: MOSH.gris2 }}>La recherche bascule vers l&apos;IA — tendance du secteur.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
@@ -1552,7 +1575,7 @@ Votre score : **${score}/100**.${callback}`;
                 </div>
 
                 {/* ── CTA soft : le diagnostic est offert, la suite se discute ── */}
-                <div style={{ textAlign: "center", marginTop: 36 }}>
+                <div className="mosh-rep-full" style={{ textAlign: "center", marginTop: 12 }}>
                   <p style={{ margin: "0 auto 18px", maxWidth: 460, fontSize: 15, lineHeight: 1.55, color: MOSH.gris1 }}>
                     Le diagnostic, vous l&apos;avez. La suite — quoi corriger, dans quel ordre, comment reprendre la place — on vous la montre.
                   </p>

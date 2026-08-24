@@ -35,6 +35,9 @@ export interface SiteAudit {
     city: string;
     types: string[];
     services: string[];
+    /** Extrait du contenu réel de la page (titres + texte visible) : c'est lui
+        qui dit ce que l'entreprise VEND — le titre seul ne suffit pas. */
+    pageText: string;
   };
   checks: AuditCheck[];
   tech: { earned: number; max: number; measured: boolean };
@@ -353,7 +356,7 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     error: null,
     jsRendered: false,
     pagesFetched,
-    profile: { name: '', title: '', description: '', city: '', types: [], services: [] },
+    profile: { name: '', title: '', description: '', city: '', types: [], services: [], pageText: '' },
     checks,
     tech: { earned: 0, max: TECH_MAX, measured: false },
     facts,
@@ -794,6 +797,16 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     .map((n) => (typeof n.name === 'string' ? n.name.trim() : ''))
     .filter(Boolean)
     .slice(0, 8);
+  // Le contenu réel de la page d'accueil (titres + texte visible), tronqué :
+  // il sert de contexte au LLM de reformulation pour comprendre ce que
+  // l'entreprise VEND. Un titre du genre "Sorties & Vie Nocturne à Genève"
+  // faisait sinon croire que l'activité était "sorties nocturnes" alors que le
+  // site vend un abonnement à des offres dans les bars.
+  const headings = [...home.body.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi)]
+    .map((m) => stripTags(m[1]))
+    .filter(Boolean)
+    .slice(0, 12);
+  const pageText = [headings.join(' · '), homeText].filter(Boolean).join(' — ').slice(0, 2200);
   audit.profile = {
     name: businessName,
     title: t,
@@ -801,6 +814,7 @@ export async function auditSite(rawSite: string): Promise<SiteAudit> {
     city: cityLooksLikeCompany ? '' : cityCandidate,
     types: localTypes.length ? localTypes : schemaTypes,
     services: [...new Set(services)],
+    pageText,
   };
 
   /* ── Score technique, normalisé sur les seuls contrôles concluants ── */
